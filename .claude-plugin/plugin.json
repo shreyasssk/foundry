@@ -14,54 +14,5 @@
     "ralph-loop",
     "convergence",
     "verification"
-  ],
-  "skills": [
-    {
-      "name": "crucible",
-      "description": "Multi-model plan refinery with RALPH loop convergence",
-      "path": "skills/crucible/SKILL.md"
-    },
-    {
-      "name": "forge",
-      "description": "Full task executor with coordinated agents and build verification",
-      "path": "skills/forge/SKILL.md"
-    }
-  ],
-  "agents": [
-    {
-      "name": "plan-drafter",
-      "description": "Generates Forge-compatible plan.md",
-      "path": "agents/plan-drafter.md"
-    },
-    {
-      "name": "design-drafter",
-      "description": "Generates Forge-compatible design-doc.md",
-      "path": "agents/design-drafter.md"
-    },
-    {
-      "name": "code-agent",
-      "description": "Per-file code implementation",
-      "path": "agents/code-agent.md"
-    },
-    {
-      "name": "plan-verifier",
-      "description": "Checks code against plan",
-      "path": "agents/plan-verifier.md"
-    },
-    {
-      "name": "design-verifier",
-      "description": "Checks code against design doc",
-      "path": "agents/design-verifier.md"
-    },
-    {
-      "name": "architecture-verifier",
-      "description": "Checks code against architecture constraints",
-      "path": "agents/architecture-verifier.md"
-    },
-    {
-      "name": "scribe",
-      "description": "Conditional task logging",
-      "path": "agents/scribe.md"
-    }
   ]
 }
