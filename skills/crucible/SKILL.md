@@ -94,7 +94,9 @@ If a design doc is also provided, check every Forge requirement:
 | 3 | Types & interfaces | Real type definitions with actual signatures (not pseudocode)? |
 | 4 | API contracts | Endpoints with method, path, request/response types, status codes? |
 | 5 | Error handling strategy | Concrete error types, propagation flow, logging? Not just "handle errors"? |
-| 6 | Alternatives considered | At least 2 alternatives with specific rejection reasons? |
+| 6 | Alternatives considered | At least 2 alternatives with specific, technical rejection reasons? Count alternatives — fail if fewer than 2. Rejection reasons must be concrete (not "it's worse"). |
+
+**Strict checks**: Items 1, 3, 4, 5, 6 are blocking — plan/design CANNOT proceed to Forge without these. Items 2 is a warning (non-blocking but flagged).
 
 ### Cross-Check (if both provided)
 
@@ -194,7 +196,10 @@ For each input provided:
 
 Read existing codebase structure:
 
-- Run `find . -type f -name "*.ts" -o -name "*.cs" -o -name "*.py" -o -name "*.go" -o -name "*.java" -o -name "*.rs" | head -100` (or equivalent for the detected language)
+- Discover project files using cross-platform commands:
+  - **Windows (PowerShell)**: `Get-ChildItem -Recurse -Include *.ts,*.cs,*.py,*.go,*.java,*.rs | Select-Object -First 100 FullName`
+  - **Unix/Mac**: `find . -type f \( -name "*.ts" -o -name "*.cs" -o -name "*.py" -o -name "*.go" -o -name "*.java" -o -name "*.rs" \) | head -100`
+  - Or use the `glob` tool if available: `**/*.{ts,cs,py,go,java,rs}`
 - Read key config files (`package.json`, `tsconfig.json`, `.csproj`, `Cargo.toml`, `go.mod`, etc.)
 - Understand the project structure and tech stack
 
@@ -232,78 +237,19 @@ Dispatch 3 parallel sub-agents using the task tool:
 - **Agent 2**: model `gpt-5.1-codex-max`
 - **Agent 3**: model `gemini-3-pro-preview` (NOTE: use `mode="sync"` for Gemini — it fails on background dispatch)
 
-Each agent receives the identical context packet plus these instructions:
+Each model dispatches TWO agents from the foundry plugin:
 
-```
-You are participating in a Crucible multi-model refinement process (Round 1).
+1. **Plan Drafter** — `task(agent_type="foundry/plan-drafter", prompt=<context packet + round instructions>, model=<model>)`
+2. **Design Drafter** (if generating) — `task(agent_type="foundry/design-drafter", prompt=<context packet + round instructions>, model=<model>)`
 
-Produce TWO outputs:
+The agent instructions in `agents/plan-drafter.md` and `agents/design-drafter.md` define the exact output templates and quality requirements. Do NOT duplicate those templates here — the agents are the single source of truth.
 
-### OUTPUT 1: plan.md
-Must follow this EXACT template:
+For each model (Opus, Codex, Gemini), dispatch both agents with the context packet as the prompt. The context packet should include:
+- The full context assembled in Phase 2
+- Round number (1 for initial)
+- Whether design doc generation is needed
 
-# Plan: [Task Title]
-
-## Branch
-`feature/[descriptive-branch-name]`
-
-## Overview
-[2-4 sentences: what this task does, the approach, and scope]
-
-## Splits
-
-### Split 1 — [Descriptive Name]
-**Goal**: [What this split accomplishes independently]
-**Files**:
-| File | Action | Description |
-|------|--------|-------------|
-| path/to/file.ext | CREATE/MODIFY | What changes |
-
-**Dependencies**: [file A → file B means B imports/depends on A. "None" if independent]
-**Acceptance Criteria**:
-- [ ] Specific testable criterion
-**Test Strategy**: [How to verify this split works]
-
-### Split 2 — [Name]
-... (continue for all splits)
-
-RULES:
-- Every split must be independently scoped and meaningful
-- Every split must have file-level breakdown with exact paths
-- File dependencies must form a DAG (no cycles)
-- Branch name is mandatory
-- Acceptance criteria must be specific and testable
-
-### OUTPUT 2: design-doc.md (ONLY if instructed to generate)
-Must follow this EXACT template:
-
-# Design: [Task Title]
-
-## Problem Statement
-[What problem, why it matters, who's affected]
-
-## Proposed Solution
-[Approach, how it fits the architecture, key decisions]
-
-## Types, Interfaces & Modules
-[New types/classes/interfaces with actual signatures — be specific]
-
-## API Contracts & Data Model
-[Endpoints, methods, schemas, data structures with types]
-
-## Error Handling Strategy
-[How errors are caught, propagated, reported — specific patterns]
-
-## Alternatives Considered
-| Alternative | Why Rejected |
-|-------------|-------------|
-| [Option A]  | [Concrete reason] |
-
-RULES:
-- Be SPECIFIC — real type names, real method signatures, real file paths
-- The design doc must contain enough detail for Forge's design-verifier to check code against
-- Error handling strategy must be concrete, not "handle errors appropriately"
-```
+Collect outputs from all 6 agents (3 plan-drafters + 3 design-drafters).
 
 Store each model's output in the output directory:
 
@@ -376,6 +322,24 @@ a REVISED version.
    - Did all 3 say "CONVERGED: yes"? → **Exit loop, proceed to Phase 5**
    - Did 2/3 say converged? → Run ONE more round for the holdout
    - Did none converge? → Continue to next round
+
+### Structural Convergence Verification
+
+Do NOT rely solely on models self-reporting "CONVERGED: yes". After collecting round N outputs, the orchestrator performs independent structural checks:
+
+1. **Branch name** — exact match across all 3 models
+2. **Split count** — same number of splits
+3. **Split names** — fuzzy match (≥80% similarity)
+4. **File lists per split** — set intersection ≥ 90% across models
+5. **Dependency graph** — isomorphic DAG structure
+
+**Convergence criteria** (ALL must be true):
+- ≥ 2 of 3 models self-report CONVERGED: yes
+- Structural checks 1-4 pass
+- No model introduced NEW splits or removed existing ones from round N-1
+
+If models say converged but structural checks fail → override: NOT converged, continue looping.
+If structural checks pass but models say not converged → accept convergence (models are being overly cautious).
 
 5. Update `crucible-state.md` with round results
 
@@ -453,10 +417,19 @@ Write final files to the output directory:
   design-doc.md     ← only if generated by Crucible
 ```
 
-Delete ALL intermediate files:
+### Safe Cleanup (two-phase)
 
-- `crucible-round-*.md` (all round outputs)
-- `crucible-state.md` (convergence tracker)
+1. **Write final files first** — write `plan.md` and `design-doc.md` to the output directory
+2. **Verify outputs exist** — confirm both files exist and are non-empty (`Test-Path` / `stat`)
+3. **THEN delete intermediates** — only after verification:
+   - `crucible-round-*.md` (all round outputs)
+   - `crucible-state.md` (convergence tracker)
+4. If verification fails — DO NOT delete intermediates. Warn the user:
+   ```
+   ⚠️ Output verification failed. Intermediate files preserved for recovery.
+   ```
+
+**Rule 8 gate**: Do not delete ANY files until the user has chosen an option (Hand off / Push / Done).
 
 Present completion summary:
 

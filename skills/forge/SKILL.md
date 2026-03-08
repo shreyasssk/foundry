@@ -118,7 +118,8 @@ Extract and internalize the following from each document.
 - [ ] File-level breakdown exists per split
   - If missing → `[MISSING]` warn — execution cannot safely spawn per-file agents without this
 - [ ] File dependencies are specified per split
-  - If missing → `[WARN]` execution will assume all files in a split are independent
+  - If missing → `[BLOCKING]` Forge cannot safely order code agent execution without dependencies. Offer to auto-derive dependencies by analyzing import/include statements in existing files, or ask the user to specify them.
+  - If present → validate DAG is acyclic. Cycles are a `[BLOCKING]` error.
 
 ### Generate Document Summaries
 
@@ -463,55 +464,51 @@ SPLIT START (put the clay on the wheel)
          - Path to design-verifier.md instructions
 
        Generate per-file diffs (not full-repo diff):
+
+       Write diffs to the project folder using OS-agnostic paths:
+       - Use the project's working directory: `forge-diff-<filename>.patch`
+       - Or use the system temp directory: `$env:TEMP` (Windows) / `$TMPDIR` (Unix)
+       - NEVER hardcode `/tmp/` — this fails on Windows
+
        ```bash
-       git diff HEAD -- <file1> > /tmp/forge-diff-file1.patch
-       git diff HEAD -- <file2> > /tmp/forge-diff-file2.patch
+       git diff HEAD -- <file1> > forge-diff-file1.patch
+       git diff HEAD -- <file2> > forge-diff-file2.patch
        ```
 
        Wait for ALL active verifiers to complete.
 
        **Consolidation**: After all verifiers finish, read each `forge-verifier-*.md` file and consolidate into `forge-coordination.md`:
-       ```markdown
-       ## Consolidated Verifier Feedback — Split [N] Iteration [I]
 
-       ### Plan Verifier
+       ### Coordination File Update
+
+       **Append, do not overwrite** `forge-coordination.md`. Each iteration adds a new section:
+
+       ```markdown
+       ---
+       ## Split [N] — Iteration [I]
+       [timestamp]
+
+       ### Consolidated Verifier Feedback
+
+       #### Plan Verifier
        [copied from forge-verifier-plan.md]
 
-       ### Architecture Verifier
+       #### Architecture Verifier
        [copied from forge-verifier-arch.md, or "SKIPPED — runs at split completion"]
 
-       ### Design Verifier
+       #### Design Verifier
        [copied from forge-verifier-design.md, or "SKIPPED — runs at split completion"]
+
+       ### Files Status
+       [current status of each file]
+       ---
        ```
 
-    6. SCRIBE (conditional, after verifiers)
+       Code agents read ONLY the latest section (last `---` delimited block). Full history is preserved for debugging and scribe reference.
 
-       **[FIX #4: Token Cost — Conditional Scribe]**
+       If the file exceeds 50 sections, archive older sections to `forge-coordination-archive.md` and keep only the last 10 in the active file.
 
-       Invoke Scribe:
-         - If ANY verifier returned ISSUES FOUND
-         - If this is the final approved iteration of a split
-         - If this is a deep review iteration
-
-       Skip Scribe on clean mid-split iterations where all active verifiers approve
-       and there's nothing notable to record.
-
-       When invoked, Scribe reads:
-         - forge-coordination.md (consolidated verifier outputs)
-         - Per-file diffs of this iteration
-         - Agent status map
-
-       Scribe appends one log entry to forge-task-log.md.
-
-    7. EVALUATE ITERATION OUTCOME
-       All active verifiers APPROVED?
-         YES → proceed to BUILD GATE
-         NO  → iteration count < hard cap?
-                 YES → clear APPROVED sections in forge-coordination.md,
-                        keep ISSUES sections → next iteration
-                 NO  → HARD CAP REACHED (see below)
-
-    8. BUILD GATE
+    6. BUILD GATE
 
        **[FIX #1: Build/Test Gate]**
 
@@ -534,7 +531,51 @@ SPLIT START (put the clay on the wheel)
        - This counts toward the hard cap
 
        If build **PASSES**:
-       - Proceed to COMMIT AND PUSH
+       - Proceed to SCRIBE and then EVALUATE ITERATION OUTCOME
+
+    7. SCRIBE (conditional, after build gate)
+
+       **[FIX #4: Token Cost — Conditional Scribe]**
+
+       Invoke Scribe:
+         - If ANY verifier returned ISSUES FOUND
+         - If the build gate FAILED
+         - If this is the final approved iteration of a split
+         - If this is a deep review iteration
+
+       Skip Scribe on clean mid-split iterations where all active verifiers approve,
+       the build passes, and there's nothing notable to record.
+
+       When invoked, Scribe reads:
+         - forge-coordination.md (consolidated verifier outputs)
+         - Per-file diffs of this iteration
+         - Agent status map
+
+       Scribe entry must include:
+       - Iteration number
+       - Files changed
+       - Verifier verdicts
+       - **Build gate result** (PASS/FAIL + error summary if failed)
+       - Decision made (continue/commit/retry)
+
+       Scribe appends one log entry to forge-task-log.md.
+
+    8. EVALUATE ITERATION OUTCOME
+       All active verifiers APPROVED and build PASSED?
+         YES → proceed to COMMIT AND PUSH
+         NO  → iteration count < hard cap?
+                 YES → clear APPROVED sections in forge-coordination.md,
+                        keep ISSUES sections → next iteration
+                 NO  → HARD CAP REACHED (see below)
+
+       **File status reset on failure**: When verifiers report ISSUES FOUND for specific files:
+       1. For each file flagged with issues in `forge-coordination.md`, reset its status in `forge-state.md` from `DONE` to `PENDING`
+       2. This ensures Step 2 (SPAWN CODE AGENTS) re-spawns agents for these files in the next iteration
+       3. **Max retry per file**: Track retry count per file in `forge-state.md`. If a file fails 3 consecutive iterations:
+          - Mark it as `STUCK` in forge-state.md
+          - Add it to the issues list in `forge-coordination.md` with all 3 failure reasons
+          - Continue with remaining files — do not block the entire split
+          - Present STUCK files to the user at split completion for manual intervention
 
     9. COMMIT AND PUSH
 
@@ -576,6 +617,26 @@ SPLIT START (put the clay on the wheel)
        ```
 
        The draft PR updates automatically with each push.
+
+    ### Rollback & Retry Strategy
+
+    **Git checkpoint**: Before starting each split's execution:
+    1. Create a checkpoint tag: `git tag forge-checkpoint-split-N` on the current HEAD
+    2. If the split fails after 10 iterations (hard cap), offer:
+       - Revert to checkpoint: `git revert --no-commit HEAD~<commits-in-split>..HEAD && git commit -m "Revert split N (forge rollback)"`
+       - Keep partial work and continue to next split
+       - Stop and let user intervene
+
+    **Agent dispatch retry**: If a code agent or verifier fails to respond (timeout, API error, empty response):
+    1. Retry once with the same model after 10 seconds
+    2. If retry fails, try with fallback model (`claude-sonnet-4.6` as universal fallback)
+    3. If fallback fails, mark the file as `STUCK` and continue with other files
+    4. Log all failures to `forge-coordination.md`
+
+    **Post-push build verification**: After pushing each split:
+    1. Run FULL build (not just split files) to catch cross-split regressions
+    2. If full build fails, revert the push: `git revert HEAD && git push`
+    3. Flag to user: "Split N broke the full build. Reverted. Issues: [build errors]"
 
 SPLIT END → clay is fired, move to next split (next piece on the wheel)
 ```
