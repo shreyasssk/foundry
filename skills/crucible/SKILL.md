@@ -47,15 +47,138 @@ To refine a plan with Crucible, provide:
 
 1. Task description  — text, file path, URL, or work item ID
 2. Architecture doc  — (optional) global/shared constraints
-3. Design doc        — (optional) if not provided, Crucible generates one
-4. Output directory  — where to write plan.md and design-doc.md (default: current directory)
+3. Existing plan     — (optional) if you already have a plan.md, provide it for validation
+4. Design doc        — (optional) if not provided, Crucible generates one
+5. Output directory  — where to write plan.md and design-doc.md (default: current directory)
 ```
 
 After user responds:
 
+- If existing plan provided → enter **Validation Mode** (Phase 1.5)
+- If existing design doc provided but no plan → enter **Generation Mode** with design doc as context
 - If no design doc → ask: "No design doc provided. Should I generate one alongside the plan?" (default: Yes)
 - Detect platform from `git remote -v` (ADO vs GitHub) for work item fetching
 - Record choices in memory
+
+---
+
+## Phase 1.5 — Validation Mode (Existing Documents)
+
+If the user provides an existing `plan.md` and/or `design-doc.md`, Crucible validates them against Forge's requirements **before** deciding whether to refine.
+
+### Plan Validation
+
+Read the provided plan and check every Forge requirement:
+
+| # | Requirement | Check |
+|---|------------|-------|
+| 1 | Task splits present | Are there named splits with clear goals? |
+| 2 | Splits meaningfully scoped | Is each split independently testable? Not too large (>12 files)? |
+| 3 | Branch name specified | Is there a `## Branch` section with a valid git branch name? |
+| 4 | File-level breakdown per split | Does every split have a files table with exact paths? |
+| 5 | File actions specified | Does every file have CREATE or MODIFY action? |
+| 6 | File dependencies specified | Are dependencies listed? Do they form a valid DAG (no cycles)? |
+| 7 | Acceptance criteria per split | Are criteria specific and testable (not vague)? |
+| 8 | Test strategy per split | Is there a concrete test approach? |
+| 9 | Splits ordered correctly | Do later splits only depend on earlier ones? |
+| 10 | No contradictions between splits | Do splits reference consistent file paths and interfaces? |
+
+### Design Doc Validation
+
+If a design doc is also provided, check every Forge requirement:
+
+| # | Requirement | Check |
+|---|------------|-------|
+| 1 | Problem statement | Clear current-state and desired-state? |
+| 2 | Proposed solution | Technical approach described? Fits architecture? |
+| 3 | Types & interfaces | Real type definitions with actual signatures (not pseudocode)? |
+| 4 | API contracts | Endpoints with method, path, request/response types, status codes? |
+| 5 | Error handling strategy | Concrete error types, propagation flow, logging? Not just "handle errors"? |
+| 6 | Alternatives considered | At least 2 alternatives with specific rejection reasons? |
+
+### Cross-Check (if both provided)
+
+- Does the plan align with the design doc?
+- Do the plan's file paths match the design doc's module definitions?
+- Does the plan's scope match the design doc's problem statement?
+
+### Validation Report
+
+Present results to the user:
+
+```
+╔══════════════════════════════════════════╗
+║       Crucible Validation Report         ║
+╠══════════════════════════════════════════╣
+║                                          ║
+║ plan.md:                                 ║
+║   ✅ Task splits present (4 splits)      ║
+║   ✅ Branch name specified               ║
+║   ❌ Split 2 missing file dependencies   ║
+║   ❌ Split 3 acceptance criteria vague    ║
+║      → "it works" is not testable        ║
+║   ⚠️  Split 4 has 15 files — consider    ║
+║      splitting further                   ║
+║                                          ║
+║ design-doc.md:                           ║
+║   ✅ Problem statement clear             ║
+║   ✅ Types & interfaces defined          ║
+║   ❌ Error handling says "handle errors  ║
+║      appropriately" — needs specifics    ║
+║   ❌ No alternatives considered section  ║
+║                                          ║
+║ Cross-check:                             ║
+║   ⚠️  Plan references UserCache.ts but   ║
+║      design doc doesn't mention caching  ║
+║                                          ║
+╠══════════════════════════════════════════╣
+║ Verdict: NOT FORGE-READY                 ║
+║ Issues: 3 critical, 2 warnings          ║
+╠══════════════════════════════════════════╣
+║ Options:                                 ║
+║ 1. Auto-fix — Crucible refines the       ║
+║    failing sections via multi-model       ║
+║    convergence (keeps passing sections)   ║
+║ 2. Manual fix — I'll update and re-run   ║
+║ 3. Proceed anyway — hand to Forge as-is  ║
+║    (Forge will flag the same issues)      ║
+╚══════════════════════════════════════════╝
+```
+
+**For each ❌ failure**, explain:
+- **What** is missing or wrong (the specific requirement)
+- **Why** Forge needs it (what breaks without it — e.g., "without file dependencies, Forge spawns agents in random order which may cause import errors")
+- **Example** of what good looks like (show the expected format)
+
+### Auto-Fix Path
+
+If user chooses auto-fix:
+1. Keep all **passing sections** as-is — do not regenerate what already works
+2. Extract only the **failing sections** as the task for the multi-model fleet
+3. Proceed to Phase 2 with the context packet focused on fixing specific gaps
+4. In Phase 3, instruct models: "Here is an existing plan. These specific sections need fixing: [list]. Keep everything else unchanged."
+5. Convergence loop (Phase 4) runs only on the failing sections
+6. In Phase 5, merge fixed sections back into the original document
+
+### All-Pass Path
+
+If all checks pass:
+
+```
+╔══════════════════════════════════════════╗
+║       Crucible Validation Report         ║
+╠══════════════════════════════════════════╣
+║ plan.md:       ✅ ALL CHECKS PASSED      ║
+║ design-doc.md: ✅ ALL CHECKS PASSED      ║
+║ Cross-check:   ✅ ALIGNED                ║
+╠══════════════════════════════════════════╣
+║ Verdict: FORGE-READY                     ║
+║                                          ║
+║ Options:                                 ║
+║ 1. Hand off to Forge (/forge)            ║
+║ 2. Done — files are ready                ║
+╚══════════════════════════════════════════╝
+```
 
 ---
 
