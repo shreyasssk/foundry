@@ -1,0 +1,18 @@
+{
+  "name": "foundry",
+  "description": "The Foundry - complete AI task lifecycle from planning to committed code. Crucible refines plans via multi-model convergence, Forge executes them with coordinated agents.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Shivani Grandhi",
+    "email": "shgrandhi@microsoft.com"
+  },
+  "keywords": [
+    "task-orchestration",
+    "multi-model",
+    "plan-refinery",
+    "code-generation",
+    "ralph-loop",
+    "convergence",
+    "verification"
+  ]
+}
