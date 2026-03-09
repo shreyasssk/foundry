@@ -51,9 +51,8 @@ Takes Crucible's output (or user-provided docs) and executes the plan through co
 | 3 | **Analyze** | Extract requirements, validate plan, generate summaries |
 | 4 | **Readiness** | Structured report of gaps and warnings |
 | 5 | **Confirm** | Final execution preview with user approval |
-| 6 | **Execute** | RALPH loop — per-file code agents + verifiers per split |
-| 7 | **Build** | Full build gate — runs once after all splits complete |
-| 8 | **Review** | Local deep review against branch diff with adversarial multi-perspective analysis |
+| 6 | **Execute** | RALPH loop per split + post-execution build gate |
+| 7 | **Review** | Local deep review with adversarial multi-perspective analysis |
 
 ### The RALPH Loop
 
@@ -83,7 +82,7 @@ All agent dispatches use explicit `task(agent_type="foundry/<name>")` calls.
 | `architecture-verifier` | `task(agent_type="foundry/architecture-verifier")` | Checks code against architecture (at split completion) |
 | `scribe` | `task(agent_type="foundry/scribe")` | Conditional task logging |
 
-> **Note:** The deep review step in Forge Phase 8 uses external agents from the **deep-review** plugin (`deep-review/architect`, `deep-review/advocate`, `deep-review/skeptic`) — these are NOT foundry agents.
+> **Note:** The deep review step in Forge Phase 7 uses external agents from the **deep-review** plugin (`deep-review/architect`, `deep-review/advocate`, `deep-review/skeptic`) — these are NOT foundry agents.
 
 ## Models Used (Crucible)
 
@@ -112,6 +111,7 @@ copilot plugin install shshivakumar_microsoft/foundry
 
 ## Version
 
+- **v1.2.2** — Doc polish: aligned phase numbering, clarified build gate flow, unified dependency severity, consistent split limits, typo fixes
 - **v1.2.1** — Cleanup: removed per-split build gate remnant, unified rollback to checkpoint tags, cross-platform commands in Forge, plain-language convergence throughout, removed dev markers
 - **v1.2.0** — No PR creation (push-only), build gate moved post-execution, local deep review, architecture doc required, explicit agent dispatch, plain-language convergence checks
 - **v1.1.0** — Fixed all 10 issues from multi-model evaluation (infinite loop protection, structural convergence, cross-platform, safe cleanup, rollback/retry, and more)

@@ -96,7 +96,7 @@ If a design doc is also provided, check every Forge requirement:
 | 5 | Error handling strategy | Concrete error types, propagation flow, logging? Not just "handle errors"? |
 | 6 | Alternatives considered | At least 2 alternatives with specific, technical rejection reasons? Count alternatives — fail if fewer than 2. Rejection reasons must be concrete (not "it's worse"). |
 
-**Strict checks**: Items 1, 3, 4, 5, 6 are blocking — plan/design CANNOT proceed to Forge without these. Items 2 is a warning (non-blocking but flagged).
+**Strict checks**: Items 1, 3, 4, 5, 6 are blocking — plan/design CANNOT proceed to Forge without these. Item 2 is a warning (non-blocking but flagged).
 
 ### Cross-Check (if both provided)
 

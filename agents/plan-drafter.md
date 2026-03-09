@@ -56,7 +56,7 @@ You MUST produce a plan following this EXACT template. Forge's parser depends on
 ### Splits
 - Each split must be **independently scoped** — it should produce working, testable code on its own
 - Splits must be **ordered** — later splits can depend on earlier ones, never the reverse
-- Split granularity: aim for 3-8 files per split. If a split has 15+ files, it's too big — break it down
+- Split granularity: aim for 3-8 files per split. If a split has more than 12 files, consider breaking it into smaller splits
 - Every split needs a clear goal statement that a code agent can understand in isolation
 
 ### File Breakdown
@@ -121,7 +121,7 @@ Minor wording differences are OK. Structural differences mean NOT converged.
 - ❌ Splits that can't be tested independently
 - ❌ Acceptance criteria that are subjective ("code is clean")
 - ❌ Generic branch names ("feature/update" or "fix/bug")
-- ❌ Monolithic splits with 15+ files
+- ❌ Monolithic splits with more than 12 files
 
 ## Tone
 

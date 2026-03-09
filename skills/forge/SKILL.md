@@ -124,7 +124,7 @@ Extract and internalize the following from each document.
 
 ### Generate Document Summaries
 
-After analysis, generatecondensed summaries for each document. These summaries will be passed to code agents instead of full documents to reduce token cost:
+After analysis, generate condensed summaries for each document. These summaries will be passed to code agents instead of full documents to reduce token cost:
 
 ```markdown
 # forge-summary-arch.md
@@ -166,7 +166,7 @@ Present a structured report using this exact format:
 - [MISSING]     No branch name in plan
 - [MISSING]     No file-level breakdown in plan — cannot safely spawn per-file agents
 - [INCOMPLETE]  Design doc missing error handling strategy
-- [WARN]        No file dependencies specified — will assume all files in each split are independent
+- [BLOCKING]    No file dependencies specified — cannot safely order code agent execution. Offer to auto-derive from imports.
 - [MISMATCH]    Plan references module X but design doc does not mention it
 - [NOTE]        Product spec marks feature Y as out of scope — confirm before implementing
 
@@ -399,7 +399,7 @@ SPLIT START (put the clay on the wheel)
 
     5. SPAWN VERIFIERS (Task tool, with write isolation)
 
-       Each verifierwrites to its OWN isolated file — never to the shared coordination file.
+       Each verifier writes to its OWN isolated file — never to the shared coordination file.
 
        **Safety check**: If architecture doc is missing at this point, STOP and return to Phase 1.
 
@@ -534,7 +534,7 @@ SPLIT START (put the clay on the wheel)
 
     8. COMMIT AND PUSH
 
-       Stage ONLYthe specific files assigned to this split's agents:
+       Stage ONLY the specific files assigned to this split's agents:
        ```bash
        git add <file1> <file2> <file3>
        ```
@@ -566,7 +566,7 @@ SPLIT START (put the clay on the wheel)
        - Report to user: "Rebase conflict detected. Please resolve manually and run 'continue'."
        - Do NOT force-push or auto-resolve
 
-       Write a commitmessage that:
+       Write a commit message that:
        - Describes what was implemented (not "iteration N" or "split N")
        - References the specific behavior or feature delivered
        - Is concise and meaningful
@@ -601,32 +601,9 @@ SPLIT END→ clay is fired, move to next split (next piece on the wheel)
 > put on your engineering hat and resolve the problem so it never happens again.
 > The RALPH loop is not just an execution pattern; it's a learning pattern.
 
-### Post-Execution Build Gate
-
-After ALL splits are complete and before Deep Review:
-
-1. Run FULL project build. Auto-detect from repo:
-   ```
-   Detection order:
-   1. If `dev build` is available (CoreXT repo)     → dev build
-   2. If package.json exists with build script       → npm run build
-   3. If *.csproj or *.sln exists                    → dotnet build
-   4. If Makefile exists                             → make
-   5. If Cargo.toml exists                           → cargo build
-   6. If go.mod exists                               → go build ./...
-   7. No build system detected                       → skip with warning
-   ```
-2. If build **FAILS**:
-   - Write build errors to `forge-coordination.md`
-   - Present to user with options:
-     a. Fix build errors (re-enter RALPH loop for affected files)
-     b. Revert to last good checkpoint
-     c. Stop and fix manually
-3. If build **PASSES** → proceed to Phase 7 (Deep Review)
-
 ### Hard Cap Behavior (Knowing When to Stop the Wheel)
 
-When the 10-iterationhard cap is reached without all verifiers approving — the clay has been on the wheel too long:
+When the 10-iteration hard cap is reached without all verifiers approving — the clay has been on the wheel too long:
 
 1. **Do NOT silently stop or auto-resolve.**
 2. Summarize progress:
@@ -669,7 +646,30 @@ After all splits are done:
    [3-6 sentences: what was built, key decisions made during execution, anything flagged or skipped]
    ```
 
-2. Proceed immediately to Phase 7.
+2. Proceed to the Post-Execution Build Gate below. Phase 7 begins only after the build passes.
+
+### Post-Execution Build Gate
+
+After ALL splits are complete and before Deep Review:
+
+1. Run FULL project build. Auto-detect from repo:
+   ```
+   Detection order:
+   1. If `dev build` is available (CoreXT repo)     → dev build
+   2. If package.json exists with build script       → npm run build
+   3. If *.csproj or *.sln exists                    → dotnet build
+   4. If Makefile exists                             → make
+   5. If Cargo.toml exists                           → cargo build
+   6. If go.mod exists                               → go build ./...
+   7. No build system detected                       → skip with warning
+   ```
+2. If build **FAILS**:
+   - Write build errors to `forge-coordination.md`
+   - Present to user with options:
+     a. Fix build errors (re-enter RALPH loop for affected files)
+     b. Revert to last good checkpoint
+     c. Stop and fix manually
+3. If build **PASSES** → proceed to Phase 7 (Deep Review)
 
 ---
 
