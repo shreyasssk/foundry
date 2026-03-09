@@ -57,7 +57,7 @@ Takes Crucible's output (or user-provided docs) and executes the plan through co
 
 ### The RALPH Loop
 
-Named after the orchestrator pattern: allocate resources with backing specs, give them a goal, loop until done.
+**RALPH** (named after Ralph Wiggum) — an orchestrator pattern for persistent, self-correcting iteration. Allocate resources with backing specs, give them a goal, loop until done.
 
 > "Software is clay on the pottery wheel. If something isn't right, throw it back on the wheel."
 
@@ -82,6 +82,8 @@ All agent dispatches use explicit `task(agent_type="foundry/<name>")` calls.
 | `design-verifier` | `task(agent_type="foundry/design-verifier")` | Checks code against design doc (at split completion) |
 | `architecture-verifier` | `task(agent_type="foundry/architecture-verifier")` | Checks code against architecture (at split completion) |
 | `scribe` | `task(agent_type="foundry/scribe")` | Conditional task logging |
+
+> **Note:** The deep review step in Forge Phase 8 uses external agents from the **deep-review** plugin (`deep-review/architect`, `deep-review/advocate`, `deep-review/skeptic`) — these are NOT foundry agents.
 
 ## Models Used (Crucible)
 
@@ -110,6 +112,7 @@ copilot plugin install shshivakumar_microsoft/foundry
 
 ## Version
 
+- **v1.2.1** — Cleanup: removed per-split build gate remnant, unified rollback to checkpoint tags, cross-platform commands in Forge, plain-language convergence throughout, removed dev markers
 - **v1.2.0** — No PR creation (push-only), build gate moved post-execution, local deep review, architecture doc required, explicit agent dispatch, plain-language convergence checks
 - **v1.1.0** — Fixed all 10 issues from multi-model evaluation (infinite loop protection, structural convergence, cross-platform, safe cleanup, rollback/retry, and more)
 - **v1.0.0** — Initial release combining Crucible + Forge under one plugin

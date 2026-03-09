@@ -124,9 +124,7 @@ Extract and internalize the following from each document.
 
 ### Generate Document Summaries
 
-**[FIX #4: Token Cost Optimization]**
-
-After analysis, generate condensed summaries for each document. These summaries will be passed to code agents instead of full documents to reduce token cost:
+After analysis, generatecondensed summaries for each document. These summaries will be passed to code agents instead of full documents to reduce token cost:
 
 ```markdown
 # forge-summary-arch.md
@@ -214,8 +212,6 @@ Before starting the loop:
 
 #### 1. Environment Preflight Checks
 
-**[FIX #5: Git Safety]**
-
 ```bash
 # Verify clean working tree
 git status --porcelain
@@ -231,19 +227,18 @@ If any preflight check fails, do NOT proceed. Report the failure and wait for th
 
 #### 2. Forge File Hygiene
 
-**[FIX #10: Forge File Hygiene]**
+Ensure forgeartifacts don't pollute version control:
 
-Ensure forge artifacts don't pollute version control:
+**Windows (PowerShell):**
+```powershell
+if (-not (Test-Path .gitignore) -or -not (Select-String -Path .gitignore -Pattern 'forge-\*\.md' -Quiet)) {
+    Add-Content -Path .gitignore -Value "`n# Forge orchestration artifacts`nforge-*.md`nforge-*.patch"
+}
+```
 
+**Unix (bash):**
 ```bash
-# Check if forge-*.md is already in .gitignore
-grep -q 'forge-\*\.md' .gitignore 2>/dev/null
-if [ $? -ne 0 ]; then
-  echo '' >> .gitignore
-  echo '# Forge orchestration artifacts' >> .gitignore
-  echo 'forge-*.md' >> .gitignore
-  echo 'forge-*.patch' >> .gitignore
-fi
+grep -q 'forge-\*\.md' .gitignore 2>/dev/null || echo -e '\n# Forge orchestration artifacts\nforge-*.md\nforge-*.patch' >> .gitignore
 ```
 
 If `.gitignore` doesn't exist, create it with the forge pattern. If modifying `.gitignore`, stage and commit it immediately with message: `chore: add forge artifacts to .gitignore`.
@@ -280,7 +275,19 @@ Splits: [N]
 
 ```bash
 git fetch origin
+```
+
+**Cross-platform default branch detection:**
+```powershell
+# PowerShell
+$DEFAULT_BRANCH = (git symbolic-ref refs/remotes/origin/HEAD) -replace 'refs/remotes/origin/', ''
+```
+```bash
+# Bash
 DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+```
+
+```bash
 git checkout -b <branch-name> origin/$DEFAULT_BRANCH || git checkout <branch-name>
 ```
 
@@ -392,15 +399,11 @@ SPLIT START (put the clay on the wheel)
 
     5. SPAWN VERIFIERS (Task tool, with write isolation)
 
-       **[FIX #3: Verifier Write Isolation]**
-
-       Each verifier writes to its OWN isolated file — never to the shared coordination file.
+       Each verifierwrites to its OWN isolated file — never to the shared coordination file.
 
        **Safety check**: If architecture doc is missing at this point, STOP and return to Phase 1.
 
-       **[FIX #4: Token Cost — Selective Verifier Runs]**
-
-       - **Plan Verifier** → runs EVERY iteration
+       - **Plan Verifier**→ runs EVERY iteration
          ```
          task(agent_type="foundry/plan-verifier", prompt="
            Plan doc: [full plan document]
@@ -480,9 +483,20 @@ SPLIT START (put the clay on the wheel)
 
     6. SCRIBE (conditional)
 
-       **[FIX #4: Token Cost — Conditional Scribe]**
-
        Invoke Scribe:
+         - If ANY verifier returned ISSUES FOUND
+         - If this is the final approved iteration of a split
+         - If this is a deep review iteration
+
+       Skip Scribe on clean mid-split iterations where all active verifiers approve
+       and there's nothing notable to record.
+
+       Scribe reads:
+         - `forge-coordination.md` (consolidated verifier feedback)
+         - Per-file diffs from this iteration
+         - Current agent status map
+
+       Dispatch:
        ```
        task(agent_type="foundry/scribe", prompt="
          Coordination file: [contents of forge-coordination.md]
@@ -492,14 +506,6 @@ SPLIT START (put the clay on the wheel)
          Output: append one log entry to forge-task-log.md
        ")
        ```
-
-       Invoke Scribe:
-         - If ANY verifier returned ISSUES FOUND
-         - If this is the final approved iteration of a split
-         - If this is a deep review iteration
-
-       Skip Scribe on clean mid-split iterations where all active verifiers approve
-       and there's nothing notable to record.
 
        Scribe entry must include:
        - Iteration number
@@ -528,21 +534,29 @@ SPLIT START (put the clay on the wheel)
 
     8. COMMIT AND PUSH
 
-       **[FIX #7: Specific File Staging]**
-
-       Stage ONLY the specific files assigned to this split's agents:
+       Stage ONLYthe specific files assigned to this split's agents:
        ```bash
        git add <file1> <file2> <file3>
        ```
 
        Do NOT use `git add .` or `git add -A`. Only stage files that code agents were assigned to modify.
 
-       **[FIX #5: Git Safety — Pre-push Rebase]**
-
        Before pushing:
        ```bash
        git fetch origin
+       ```
+
+       **Cross-platform default branch detection:**
+       ```powershell
+       # PowerShell
+       $DEFAULT_BRANCH = (git symbolic-ref refs/remotes/origin/HEAD) -replace 'refs/remotes/origin/', ''
+       ```
+       ```bash
+       # Bash
        DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+       ```
+
+       ```bash
        git rebase origin/$DEFAULT_BRANCH
        ```
 
@@ -552,9 +566,7 @@ SPLIT START (put the clay on the wheel)
        - Report to user: "Rebase conflict detected. Please resolve manually and run 'continue'."
        - Do NOT force-push or auto-resolve
 
-       **[FIX #6: Co-authored-by Flexibility]**
-
-       Write a commit message that:
+       Write a commitmessage that:
        - Describes what was implemented (not "iteration N" or "split N")
        - References the specific behavior or feature delivered
        - Is concise and meaningful
@@ -571,7 +583,7 @@ SPLIT START (put the clay on the wheel)
     **Git checkpoint**: Before starting each split's execution:
     1. Create a checkpoint tag: `git tag forge-checkpoint-split-N` on the current HEAD
     2. If the split fails after 10 iterations (hard cap), offer:
-       - Revert to checkpoint: `git revert --no-commit HEAD~<commits-in-split>..HEAD && git commit -m "Revert split N (forge rollback)"`
+       - Revert to checkpoint: `git revert --no-commit forge-checkpoint-split-N..HEAD && git commit -m "Revert split N (forge rollback)" && git push origin <branch-name>`
        - Keep partial work and continue to next split
        - Stop and let user intervene
 
@@ -581,13 +593,7 @@ SPLIT START (put the clay on the wheel)
     3. If fallback fails, mark the file as `STUCK` and continue with other files
     4. Log all failures to `forge-coordination.md`
 
-    **Post-push build verification**: After pushing each split:
-    1. Run FULL build (not just split files) to catch cross-split regressions
-    2. If full build fails, revert all commits in this split back to checkpoint:
-       `git revert --no-commit forge-checkpoint-split-N..HEAD && git commit -m "Revert split N (forge rollback)" && git push origin <branch-name>`
-    3. Flag to user: "Split N broke the full build. Reverted. Issues: [build errors]"
-
-SPLIT END → clay is fired, move to next split (next piece on the wheel)
+SPLIT END→ clay is fired, move to next split (next piece on the wheel)
 ```
 
 > **Watching the loop is where you learn.** When you see a failure domain — a verifier
@@ -620,9 +626,7 @@ After ALL splits are complete and before Deep Review:
 
 ### Hard Cap Behavior (Knowing When to Stop the Wheel)
 
-**[FIX #9: Hard Cap Enforcement]**
-
-When the 10-iteration hard cap is reached without all verifiers approving — the clay has been on the wheel too long:
+When the 10-iterationhard cap is reached without all verifiers approving — the clay has been on the wheel too long:
 
 1. **Do NOT silently stop or auto-resolve.**
 2. Summarize progress:
@@ -680,8 +684,18 @@ Update `forge-state.md`: set `phase: deep-review`.
 Deep review runs locally against the current branch's diff from the default branch.
 
 Generate the full diff:
+
+**Cross-platform default branch detection:**
+```powershell
+# PowerShell
+$DEFAULT_BRANCH = (git symbolic-ref refs/remotes/origin/HEAD) -replace 'refs/remotes/origin/', ''
+```
 ```bash
+# Bash
 DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+```
+
+```bash
 git diff origin/$DEFAULT_BRANCH..HEAD > forge-deep-review-diff.patch
 ```
 
@@ -723,7 +737,19 @@ For each round of deep review feedback:
    - **Fetch and rebase before push**:
      ```bash
      git fetch origin
+     ```
+
+     **Cross-platform default branch detection:**
+     ```powershell
+     # PowerShell
+     $DEFAULT_BRANCH = (git symbolic-ref refs/remotes/origin/HEAD) -replace 'refs/remotes/origin/', ''
+     ```
+     ```bash
+     # Bash
      DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+     ```
+
+     ```bash
      git rebase origin/$DEFAULT_BRANCH
      ```
    - Meaningful commit message referencing the deep review concern addressed
@@ -762,7 +788,7 @@ Once all three deep review perspectives are satisfied:
    Create a PR from this branch when you're ready for team review.
    ```
 
-3. **[FIX #10: Forge File Hygiene — Cleanup Offer]**
+3. Offer cleanup:
 
    ```
    Forge created the following working files:

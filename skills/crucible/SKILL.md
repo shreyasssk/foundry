@@ -77,7 +77,7 @@ Read the provided plan and check every Forge requirement:
 | 3 | Branch name specified | Is there a `## Branch` section with a valid git branch name? |
 | 4 | File-level breakdown per split | Does every split have a files table with exact paths? |
 | 5 | File actions specified | Does every file have CREATE or MODIFY action? |
-| 6 | File dependencies specified | Are dependencies listed? Do they form a valid DAG (no cycles)? |
+| 6 | File dependencies specified | Are dependencies listed? Are they free of circular references? |
 | 7 | Acceptance criteria per split | Are criteria specific and testable (not vague)? |
 | 8 | Test strategy per split | Is there a concrete test approach? |
 | 9 | Splits ordered correctly | Do later splits only depend on earlier ones? |
@@ -347,7 +347,8 @@ If structural checks pass but models say not converged → accept convergence (m
 
 ```
 Crucible has not fully converged after 10 rounds.
-Current agreement level: [X]%
+Remaining disagreements:
+[list each specific point where models still disagree]
 
 Options:
 1. Accept best-effort merged output (recommended)
@@ -377,7 +378,7 @@ Run these checks — ALL must pass:
 - [ ] Task splits present and meaningfully scoped
 - [ ] Branch name specified
 - [ ] File-level breakdown per split with exact paths
-- [ ] File dependencies specified and form a valid DAG (no cycles)
+- [ ] File dependencies specified and free of circular references
 - [ ] Acceptance criteria per split (specific, testable)
 - [ ] Test strategy per split
 - [ ] No contradictions between splits
@@ -403,7 +404,7 @@ If any check fails → dispatch one targeted model round to fix ONLY the failing
 - Does the plan align with the design doc?
 - Does the design respect architecture constraints (if arch doc provided)?
 - Are there contradictions between plan and design?
-- Is the file dependency graph acyclic across ALL splits?
+- Are file dependencies free of circular references across ALL splits?
 
 ---
 
