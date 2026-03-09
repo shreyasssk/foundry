@@ -227,7 +227,7 @@ If any preflight check fails, do NOT proceed. Report the failure and wait for th
 
 #### 2. Forge File Hygiene
 
-Ensure forgeartifacts don't pollute version control:
+Ensure forge artifacts don't pollute version control:
 
 **Windows (PowerShell):**
 ```powershell
@@ -342,7 +342,7 @@ Update `forge-state.md` after every step:
 ### The RALPH Loop (per split)
 
 > **RALPH** (named after Ralph Wiggum) is an orchestrator pattern for persistent, self-correcting iteration.
-> You allocate the array with the required backing specifications, give it a goal, then loop the goal.
+> You allocate the resources with the required backing specifications, give it a goal, then loop the goal.
 > Each iteration feeds the AI context from its previous work — git history, modified files, verifier feedback —
 > creating a self-referential feedback loop that lets the system improve its own output over time.
 >
@@ -426,6 +426,7 @@ SPLIT START (put the clay on the wheel)
          ```
 
        - **Design Verifier** → runs only at SPLIT COMPLETION (all files done)
+         If no design doc was provided (Phase 4 readiness shows 'NOT PROVIDED'), skip the design verifier. Log: 'Design verifier skipped — no design doc provided.'
          ```
          task(agent_type="foundry/design-verifier", prompt="
            Design doc: [full design document]
@@ -636,7 +637,7 @@ After all splits are done:
 
 1. Scribe writes a final summary to `forge-task-log.md`:
    ```
-   ## Task Complete
+   ## All Splits Complete
    Finished  : [ISO timestamp]
    Total time: [duration]
    Splits    : [N completed / N total]

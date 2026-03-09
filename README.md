@@ -95,7 +95,7 @@ All agent dispatches use explicit `task(agent_type="foundry/<name>")` calls.
 ## Safety Features
 
 - **Adaptive convergence** (Crucible) — plain-language convergence checks, never forces premature consensus
-- **Hard caps** — 10 rounds in Crucible, 10 iterations per split in Forge
+- **Hard caps** — 10 rounds in Crucible, 10 iterations per split in Forge, 5 rounds of deep review
 - **Resume support** — both skills track state and can pick up where they left off
 - **Post-execution build gate** (Forge) — full build after all splits complete, before deep review
 - **Git safety** (Forge) — fetch/rebase before push, specific file staging, dynamic default branch detection
@@ -111,6 +111,7 @@ copilot plugin install shshivakumar_microsoft/foundry
 
 ## Version
 
+- **v1.2.3** — Final polish: typo fix, scribe entry naming, deep review cap in README, design verifier skip logic, consistent RALPH wording
 - **v1.2.2** — Doc polish: aligned phase numbering, clarified build gate flow, unified dependency severity, consistent split limits, typo fixes
 - **v1.2.1** — Cleanup: removed per-split build gate remnant, unified rollback to checkpoint tags, cross-platform commands in Forge, plain-language convergence throughout, removed dev markers
 - **v1.2.0** — No PR creation (push-only), build gate moved post-execution, local deep review, architecture doc required, explicit agent dispatch, plain-language convergence checks

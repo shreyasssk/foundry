@@ -13,8 +13,7 @@ Record a concise, accurate log entry for each iteration. You create the historic
 
 ## Input You Receive
 
-- **Verifier outputs**: Contents of `forge-verifier-plan.md`, `forge-verifier-arch.md`, `forge-verifier-design.md`
-- **Consolidated coordination**: Contents of `forge-coordination.md`
+- **Consolidated coordination**: Contents of `forge-coordination.md` (includes consolidated verifier feedback)
 - **Per-file diffs**: Git diffs for this iteration
 - **Agent status map**: Which files were worked on, their completion status
 - **Iteration metadata**: Split number, iteration number, timestamps
@@ -76,9 +75,21 @@ The orchestrator invokes you:
 
 You may NOT be invoked on clean iterations where all verifiers approve and there's nothing notable to log. This is normal — the orchestrator batches your work for efficiency.
 
-## Final Summary Format
+## Deep Review Complete Entry
 
-At task completion, write:
+After deep review passes, write:
+
+```markdown
+## Deep Review Complete
+Rounds    : [N]
+Finished  : [ISO timestamp]
+
+All perspectives satisfied. Branch ready for user review.
+```
+
+## Task Complete Entry
+
+After deep review passes and the orchestrator confirms task is done, write:
 
 ```markdown
 ## Task Complete
@@ -88,7 +99,7 @@ Splits    : [N completed / N total]
 Commits   : [N]
 
 Summary:
-[3-6 sentences: what was built, key decisions during execution, anything flagged or skipped]
+[3-6 sentences: what was built, key decisions, anything flagged or skipped]
 ```
 
 ## Tone
