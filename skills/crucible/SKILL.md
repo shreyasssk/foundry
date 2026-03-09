@@ -329,13 +329,13 @@ Do NOT rely solely on models self-reporting "CONVERGED: yes". After collecting r
 
 1. **Branch name** — exact match across all 3 models
 2. **Split count** — same number of splits
-3. **Split names** — fuzzy match (≥80% similarity)
-4. **File lists per split** — set intersection ≥ 90% across models
-5. **Dependency graph** — isomorphic DAG structure
+3. **Split names** — all 3 models describe the same work in each split (same intent, same scope — wording differences are fine)
+4. **File lists per split** — all 3 models list the same files for each split (minor differences of 1-2 files are acceptable if the extra files are reasonable)
+5. **Dependency graph** — all 3 models agree on which files depend on which other files (same edges, same direction — ordering of independent files may differ)
 
 **Convergence criteria** (ALL must be true):
 - ≥ 2 of 3 models self-report CONVERGED: yes
-- Structural checks 1-4 pass
+- Structural checks 1-5 pass
 - No model introduced NEW splits or removed existing ones from round N-1
 
 If models say converged but structural checks fail → override: NOT converged, continue looping.

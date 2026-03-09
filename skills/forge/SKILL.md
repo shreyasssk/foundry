@@ -46,12 +46,11 @@ If no state found or user chose fresh start, ask for document locations in a sin
 ```
 To get started with Forge, please provide paths to the following.
 You can give a file path or a directory (I'll find the right files inside).
-Skip anything that doesn't apply.
 
-1. Architecture doc   — global/shared document (file or folder path)
+1. Architecture doc   — REQUIRED (file or folder path)
 2. Design doc         — task-specific (file or folder path)
 3. Plan               — task-specific; often same directory as design doc
-4. Product spec       — optional
+4. Product spec       — optional (skip if not applicable)
 5. Task description   — brief summary or work item ID
 ```
 
@@ -111,6 +110,8 @@ Extract and internalize the following from each document.
 
 ### Plan-Specific Validation (required for execution)
 
+- [ ] Architecture doc is provided
+  - If missing → `[BLOCKING]` Architecture doc is required. Provide one or ask Crucible to generate one.
 - [ ] Task splits are present and meaningfully scoped
   - If missing → `[MISSING]` warn, offer to create splits yourself or ask user to add them
 - [ ] Branch name is specified
@@ -150,7 +151,7 @@ Present a structured report using this exact format:
 ## Forge Readiness Report
 
 ### Documents
-- Architecture : [path or NOT PROVIDED]
+- Architecture : [path] — REQUIRED
 - Design Doc   : [path or NOT PROVIDED]
 - Plan         : [path or NOT PROVIDED]
 - Product Spec : [path or NOT PROVIDED / NOT REQUIRED]
@@ -163,7 +164,7 @@ Present a structured report using this exact format:
 - [Specific strengths, e.g. "Plan has file-level breakdown with dependencies"]
 
 ### Gaps and Warnings
-- [MISSING]     Architecture doc not provided — proceeding without system-level constraints
+- [BLOCKING]    Architecture doc not provided — REQUIRED, cannot proceed
 - [MISSING]     No branch name in plan
 - [MISSING]     No file-level breakdown in plan — cannot safely spawn per-file agents
 - [INCOMPLETE]  Design doc missing error handling strategy
@@ -195,7 +196,7 @@ Branch   : [branch name from plan]
 Splits   : [N splits — list them with their file counts]
 Strategy : One code agent per file, parallel within dependency constraints
            Verifiers (plan every iteration; architecture + design at split completion)
-           Build gate before every commit
+           Build gate after all splits complete, before deep review
            Scribe maintains task log at [project folder path]
 
 Shall I proceed?
@@ -224,31 +225,11 @@ git status --porcelain
 git ls-remote --exit-code origin
 # If fails → STOP, ask user to check network/auth
 
-# Verify authentication works for push
-git push --dry-run origin HEAD 2>&1
-# If fails → STOP, ask user to fix credentials
 ```
 
 If any preflight check fails, do NOT proceed. Report the failure and wait for the user.
 
-#### 2. Platform Detection
-
-**[FIX #2: Platform Detection]**
-
-Detect the hosting platform from git remotes:
-
-```bash
-git remote -v
-```
-
-Parse the output:
-- If URL contains `dev.azure.com` or `visualstudio.com` → **ADO platform**. Use `ado-repo_create_pull_request` for PR operations.
-- If URL contains `github.com` → **GitHub platform**. Use `github-mcp-server` tools for PR operations.
-- If neither detected → **Unknown platform**. Skip PR creation, notify user: "Could not detect platform — PR will not be created automatically. You can create one manually after execution."
-
-Store the detected platform in `forge-state.md` under `## Platform`.
-
-#### 3. Forge File Hygiene
+#### 2. Forge File Hygiene
 
 **[FIX #10: Forge File Hygiene]**
 
@@ -261,12 +242,13 @@ if [ $? -ne 0 ]; then
   echo '' >> .gitignore
   echo '# Forge orchestration artifacts' >> .gitignore
   echo 'forge-*.md' >> .gitignore
+  echo 'forge-*.patch' >> .gitignore
 fi
 ```
 
 If `.gitignore` doesn't exist, create it with the forge pattern. If modifying `.gitignore`, stage and commit it immediately with message: `chore: add forge artifacts to .gitignore`.
 
-#### 4. Create Coordination Files
+#### 3. Create Coordination Files
 
 Create the coordination directory in the project folder (same folder as plan/design doc):
 
@@ -283,7 +265,7 @@ Create the coordination directory in the project folder (same folder as plan/des
 └── forge-summary-plan.md        ← plan summary for agents
 ```
 
-#### 5. Initialize Task Log
+#### 4. Initialize Task Log
 
 ```markdown
 # Forge Task Log
@@ -291,44 +273,18 @@ Task: [task description]
 Branch: [branch name]
 Started: [ISO timestamp]
 Splits: [N]
-Platform: [ADO / GitHub / Unknown]
 ---
 ```
 
-#### 6. Checkout or Create Branch
+#### 5. Checkout or Create Branch
 
 ```bash
 git fetch origin
-git checkout -b <branch-name> origin/main || git checkout <branch-name>
+DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+git checkout -b <branch-name> origin/$DEFAULT_BRANCH || git checkout <branch-name>
 ```
 
-#### 7. Create Draft PR
-
-Based on detected platform:
-
-**ADO:**
-```
-ado-repo_create_pull_request:
-  isDraft: true
-  targetRefName: "refs/heads/main"
-  sourceRefName: "refs/heads/<branch-name>"
-  title: <concise task description>
-  description: <task summary, list of splits>
-```
-
-**GitHub:**
-```
-github-mcp-server tools:
-  Create PR as draft with equivalent parameters
-```
-
-**Unknown platform:**
-Skip PR creation. Log: "PR creation skipped — platform not detected."
-
-Write the PR number and URL to `forge-state.md` under `## Deep Review`.
-**Do not publish or mark as ready — draft only.**
-
-#### 8. Initialize State File
+#### 6. Initialize State File
 
 Create `forge-state.md`:
 
@@ -341,13 +297,7 @@ deep-review-round: 0
 hard-cap-deep-review: 5
 status: running
 phase: execution
-platform: [ADO / GitHub / Unknown]
 ---
-
-## Platform
-- Type     : [ADO / GitHub / Unknown]
-- Remote   : [remote URL]
-- PR Tools : [ado-repo / github-mcp-server / none]
 
 ## Dependency Graph
 - FileA.cs: pending
@@ -366,8 +316,6 @@ platform: [ADO / GitHub / Unknown]
 
 ## Deep Review
 - Round       : 0
-- PR URL      : [URL or "not created"]
-- PR Number   : [number or "N/A"]
 - Last result : —
 
 ## Failure Log
@@ -397,7 +345,7 @@ Update `forge-state.md` after every step:
 > that came before — failures, corrections, approvals. This is how the loop self-corrects.
 >
 > The loop runs **per split** — each split is an independent turn on the pottery wheel.
-> If something isn't right, it goes back on the wheel. When all verifiers approve and the build passes,
+> If something isn't right, it goes back on the wheel. When all verifiers approve,
 > the clay is fired (committed). Then the next split goes on the wheel.
 
 Repeat for each split in order:
@@ -414,16 +362,18 @@ SPLIT START (put the clay on the wheel)
        Files whose dependencies are all in done status are unblocked.
        On first iteration, files with no dependencies are unblocked.
 
-    2. SPAWN CODE AGENTS (Task tool, parallel, one per unblocked file)
-       Each code agent receives:
-         - The specific file it owns
-         - Document SUMMARIES (not full docs) — forge-summary-arch.md, forge-summary-design.md, forge-summary-plan.md
-         - The task split description
-         - Contents of forge-coordination.md (verifier feedback from last iteration)
-         - Instruction: implement only what is needed for this file in this split
-         - Instruction: do not commit
-         - Instruction: do not modify any file other than your assigned file
-         - Path to code-agent.md instructions
+    2. SPAWN CODE AGENTS (parallel, one per unblocked file)
+
+       For each unblocked file, dispatch:
+       ```
+       task(agent_type="foundry/code-agent", prompt="
+         File: <file-path>
+         Split: <split-N description>
+         Summaries: [contents of forge-summary-arch.md, forge-summary-design.md, forge-summary-plan.md]
+         Feedback: [latest section of forge-coordination.md, or 'First iteration — no prior feedback']
+         Instructions: Implement only what is needed for this file in this split. Do not commit. Do not modify any other file.
+       ")
+       ```
 
        Wait for ALL code agents to complete before continuing.
 
@@ -446,22 +396,42 @@ SPLIT START (put the clay on the wheel)
 
        Each verifier writes to its OWN isolated file — never to the shared coordination file.
 
+       **Safety check**: If architecture doc is missing at this point, STOP and return to Phase 1.
+
        **[FIX #4: Token Cost — Selective Verifier Runs]**
 
        - **Plan Verifier** → runs EVERY iteration
-         - Input: plan doc, per-file diffs, file list, split description
-         - Output: forge-verifier-plan.md
-         - Path to plan-verifier.md instructions
+         ```
+         task(agent_type="foundry/plan-verifier", prompt="
+           Plan doc: [full plan document]
+           Per-file diffs: [diffs]
+           File list: [files in this split]
+           Split description: [split N details]
+           Output file: forge-verifier-plan.md
+         ")
+         ```
 
        - **Architecture Verifier** → runs only at SPLIT COMPLETION (all files done)
-         - Input: architecture doc, per-file diffs, file list, split description
-         - Output: forge-verifier-arch.md
-         - Path to architecture-verifier.md instructions
+         ```
+         task(agent_type="foundry/architecture-verifier", prompt="
+           Architecture doc: [full architecture document]
+           Per-file diffs: [diffs]
+           File list: [files in this split]
+           Split description: [split N details]
+           Output file: forge-verifier-arch.md
+         ")
+         ```
 
        - **Design Verifier** → runs only at SPLIT COMPLETION (all files done)
-         - Input: design doc, per-file diffs, file list, split description
-         - Output: forge-verifier-design.md
-         - Path to design-verifier.md instructions
+         ```
+         task(agent_type="foundry/design-verifier", prompt="
+           Design doc: [full design document]
+           Per-file diffs: [diffs]
+           File list: [files in this split]
+           Split description: [split N details]
+           Output file: forge-verifier-design.md
+         ")
+         ```
 
        Generate per-file diffs (not full-repo diff):
 
@@ -508,60 +478,39 @@ SPLIT START (put the clay on the wheel)
 
        If the file exceeds 50 sections, archive older sections to `forge-coordination-archive.md` and keep only the last 10 in the active file.
 
-    6. BUILD GATE
-
-       **[FIX #1: Build/Test Gate]**
-
-       Before committing, run the project's build command. Auto-detect from repo:
-
-       ```
-       Detection order:
-       1. If `dev build` is available (CoreXT repo)     → dev build
-       2. If package.json exists with build script       → npm run build
-       3. If *.csproj or *.sln exists                    → dotnet build
-       4. If Makefile exists                             → make
-       5. If Cargo.toml exists                           → cargo build
-       6. If go.mod exists                               → go build ./...
-       7. No build system detected                       → skip with warning
-       ```
-
-       If build **FAILS**:
-       - Write compiler/test errors to `forge-coordination.md` under `## Build Errors`
-       - Treat as ISSUES FOUND — loop back to next iteration
-       - This counts toward the hard cap
-
-       If build **PASSES**:
-       - Proceed to SCRIBE and then EVALUATE ITERATION OUTCOME
-
-    7. SCRIBE (conditional, after build gate)
+    6. SCRIBE (conditional)
 
        **[FIX #4: Token Cost — Conditional Scribe]**
 
        Invoke Scribe:
+       ```
+       task(agent_type="foundry/scribe", prompt="
+         Coordination file: [contents of forge-coordination.md]
+         Per-file diffs: [diffs from this iteration]
+         Agent status: [current agent status map]
+         Record: iteration number, files changed, verifier verdicts, decision made
+         Output: append one log entry to forge-task-log.md
+       ")
+       ```
+
+       Invoke Scribe:
          - If ANY verifier returned ISSUES FOUND
-         - If the build gate FAILED
          - If this is the final approved iteration of a split
          - If this is a deep review iteration
 
-       Skip Scribe on clean mid-split iterations where all active verifiers approve,
-       the build passes, and there's nothing notable to record.
-
-       When invoked, Scribe reads:
-         - forge-coordination.md (consolidated verifier outputs)
-         - Per-file diffs of this iteration
-         - Agent status map
+       Skip Scribe on clean mid-split iterations where all active verifiers approve
+       and there's nothing notable to record.
 
        Scribe entry must include:
        - Iteration number
        - Files changed
        - Verifier verdicts
-       - **Build gate result** (PASS/FAIL + error summary if failed)
        - Decision made (continue/commit/retry)
 
        Scribe appends one log entry to forge-task-log.md.
 
-    8. EVALUATE ITERATION OUTCOME
-       All active verifiers APPROVED and build PASSED?
+    7. EVALUATE ITERATION OUTCOME
+       All active verifiers APPROVED?
          YES → proceed to COMMIT AND PUSH
          NO  → iteration count < hard cap?
                  YES → clear APPROVED sections in forge-coordination.md,
@@ -577,7 +526,7 @@ SPLIT START (put the clay on the wheel)
           - Continue with remaining files — do not block the entire split
           - Present STUCK files to the user at split completion for manual intervention
 
-    9. COMMIT AND PUSH
+    8. COMMIT AND PUSH
 
        **[FIX #7: Specific File Staging]**
 
@@ -593,7 +542,8 @@ SPLIT START (put the clay on the wheel)
        Before pushing:
        ```bash
        git fetch origin
-       git rebase origin/<target-branch>
+       DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+       git rebase origin/$DEFAULT_BRANCH
        ```
 
        If rebase **fails** (conflicts):
@@ -616,8 +566,6 @@ SPLIT START (put the clay on the wheel)
        git push origin <branch-name>
        ```
 
-       The draft PR updates automatically with each push.
-
     ### Rollback & Retry Strategy
 
     **Git checkpoint**: Before starting each split's execution:
@@ -635,7 +583,8 @@ SPLIT START (put the clay on the wheel)
 
     **Post-push build verification**: After pushing each split:
     1. Run FULL build (not just split files) to catch cross-split regressions
-    2. If full build fails, revert the push: `git revert HEAD && git push`
+    2. If full build fails, revert all commits in this split back to checkpoint:
+       `git revert --no-commit forge-checkpoint-split-N..HEAD && git commit -m "Revert split N (forge rollback)" && git push origin <branch-name>`
     3. Flag to user: "Split N broke the full build. Reverted. Issues: [build errors]"
 
 SPLIT END → clay is fired, move to next split (next piece on the wheel)
@@ -645,6 +594,29 @@ SPLIT END → clay is fired, move to next split (next piece on the wheel)
 > that keeps rejecting, a build that won't pass, a dependency that blocks everything —
 > put on your engineering hat and resolve the problem so it never happens again.
 > The RALPH loop is not just an execution pattern; it's a learning pattern.
+
+### Post-Execution Build Gate
+
+After ALL splits are complete and before Deep Review:
+
+1. Run FULL project build. Auto-detect from repo:
+   ```
+   Detection order:
+   1. If `dev build` is available (CoreXT repo)     → dev build
+   2. If package.json exists with build script       → npm run build
+   3. If *.csproj or *.sln exists                    → dotnet build
+   4. If Makefile exists                             → make
+   5. If Cargo.toml exists                           → cargo build
+   6. If go.mod exists                               → go build ./...
+   7. No build system detected                       → skip with warning
+   ```
+2. If build **FAILS**:
+   - Write build errors to `forge-coordination.md`
+   - Present to user with options:
+     a. Fix build errors (re-enter RALPH loop for affected files)
+     b. Revert to last good checkpoint
+     c. Stop and fix manually
+3. If build **PASSES** → proceed to Phase 7 (Deep Review)
 
 ### Hard Cap Behavior (Knowing When to Stop the Wheel)
 
@@ -688,7 +660,6 @@ After all splits are done:
    Total time: [duration]
    Splits    : [N completed / N total]
    Commits   : [N]
-   Platform  : [ADO / GitHub / Unknown]
 
    Summary:
    [3-6 sentences: what was built, key decisions made during execution, anything flagged or skipped]
@@ -700,24 +671,29 @@ After all splits are done:
 
 ## Phase 7 — Deep Review Loop
 
-The draft PR was created at the start of execution and has been receiving every commit pushed during Phase 6. All code changes are now complete on the remote.
+All code changes are complete and the build has passed. Deep review runs locally against the branch diff.
 
 Update `forge-state.md`: set `phase: deep-review`.
 
-If platform is "Unknown" (no PR was created), skip Deep Review and go to Completion with a note: "Deep review skipped — no PR available. Consider running `/deep-review` manually on the branch."
-
 ### Step 1 — Run Deep Review
 
-Read the PR number from `forge-state.md` → `## Deep Review → PR Number`.
+Deep review runs locally against the current branch's diff from the default branch.
 
-Invoke `/deep-review <PR-Number>` — deep-review will diff the PR against main directly.
+Generate the full diff:
+```bash
+DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+git diff origin/$DEFAULT_BRANCH..HEAD > forge-deep-review-diff.patch
+```
 
-Deep review runs three parallel perspectives:
-- **Architect** — direction and design soundness
-- **Advocate** — defense of the implementation
-- **Skeptic** — attack mindset, finds flaws
+Dispatch three parallel agents using the task tool:
 
-Wait for all three perspectives to complete.
+```
+task(agent_type="deep-review/architect", prompt="Review this diff for direction and design soundness:\n\n[contents of forge-deep-review-diff.patch]")
+task(agent_type="deep-review/advocate", prompt="Defend this implementation — find strengths and justify decisions:\n\n[contents of forge-deep-review-diff.patch]")
+task(agent_type="deep-review/skeptic", prompt="Attack this code — find flaws, risks, and weaknesses:\n\n[contents of forge-deep-review-diff.patch]")
+```
+
+Wait for all three to complete.
 
 ### Step 2 — Evaluate Deep Review Feedback
 
@@ -740,18 +716,22 @@ For each round of deep review feedback:
    - One code agent per file affected
    - Dependency-aware, parallel where possible
    - Plan Verifier checks that fixes align with the original plan
-   - Build gate runs before every commit
    - Scribe logs each iteration under `## Deep Review Round [N] — Iteration [I]`
 
 3. Commit and push each fix:
    - **Stage only specific files** (`git add <files>`)
-   - **Fetch and rebase before push** (`git fetch origin && git rebase origin/<target>`)
+   - **Fetch and rebase before push**:
+     ```bash
+     git fetch origin
+     DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+     git rebase origin/$DEFAULT_BRANCH
+     ```
    - Meaningful commit message referencing the deep review concern addressed
    - Follow host environment's commit trailer policy
 
 4. Increment `deep-review-round` in `forge-state.md` and update `## Deep Review` last result.
 
-5. Re-run `/deep-review <PR-Number>` — go back to Step 2.
+5. Re-run deep review (regenerate diff and dispatch agents) — go back to Step 2.
 
 Hard cap: max 5 deep review rounds. If cap is reached:
 - Pause and present remaining open issues to user
@@ -767,20 +747,19 @@ Once all three deep review perspectives are satisfied:
    Rounds    : [N]
    Finished  : [ISO timestamp]
 
-   All perspectives satisfied. Draft PR ready for user review.
+   All perspectives satisfied. Branch ready for user to create PR.
    ```
 
 2. Report to user:
    ```
    All done.
 
-   Draft PR : [PR URL]
    Branch   : [branch name]
    Commits  : [N total]
    Log      : [path to forge-task-log.md]
 
    Deep review passed after [N] round(s).
-   The PR is still a draft — mark it ready for review when you're happy.
+   Create a PR from this branch when you're ready for team review.
    ```
 
 3. **[FIX #10: Forge File Hygiene — Cleanup Offer]**
@@ -794,12 +773,13 @@ Once all three deep review perspectives are satisfied:
    - forge-verifier-design.md
    - forge-task-log.md
    - forge-summary-*.md
+   - forge-deep-review-diff.patch
 
    These are in .gitignore and won't be committed.
    Would you like me to delete them? (They're useful for debugging if you keep them.)
    ```
 
-Do not mark the PR as ready. Do not merge. Hand off to the user.
+Do not merge. Hand off to the user.
 
 ---
 
@@ -814,18 +794,19 @@ Do not mark the PR as ready. Do not merge. Hand off to the user.
 - Always read forge-coordination.md fresh from disk at each iteration start
 - Always set a hard cap per split (default 10 iterations) — never loop without a ceiling
 - If hard cap is reached, always present options to user — never auto-resolve
-- Always create the draft PR at the start of execution (Phase 6 setup), not at the end
+- Never create PRs — Forge pushes to the remote branch only. PR creation is the user's responsibility.
 - Always push immediately after every commit
 - Always fetch and rebase before push — never push without checking for drift
 - On rebase conflict, always pause and ask user — never force-push or auto-resolve
 - Always stage only specific assigned files — never use `git add .` or `git add -A`
-- Always run the build gate before committing — never commit code that doesn't compile
-- Always detect platform from git remotes — never hardcode ADO or GitHub
 - Each verifier writes to its own file — never have multiple verifiers write to the same file
 - Pass document summaries to code agents — never send full documents to every agent
 - Follow the host environment's commit trailer policy — never impose or ban specific trailers
 - Always add `forge-*.md` to `.gitignore` at startup
-- Never publish or mark the draft PR as ready — that is always the user's decision
-- Never merge — forge only builds and reviews, never merges
 - Always flag conflicting feedback between deep review perspectives and ask user before resolving
 - Always cap deep review rounds at 5 — if not satisfied by then, pause and ask user
+- Architecture doc is required — if not provided, block execution and ask the user.
+- Build gate runs once after all splits complete, before deep review — not during the RALPH loop.
+- Deep review runs locally against the branch diff — no PR required.
+- Always use dynamic default branch detection — never hardcode main or master.
+- Always dispatch agents explicitly using task(agent_type='foundry/<agent-name>') — never use vague instructions.
