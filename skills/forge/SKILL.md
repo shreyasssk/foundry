@@ -265,13 +265,18 @@ Create the coordination directory in the project folder (same folder as plan/des
 ```markdown
 # Forge Task Log
 Task: [task description]
-Branch: [branch name]
+Task Branch: [task-branch]
 Started: [ISO timestamp]
 Splits: [N]
+Branching: per-split (<task-branch>/split-1, split-2, ...)
 ---
 ```
 
-#### 5. Checkout or Create Branch
+#### 5. Checkout or Create Branch (per-split branching)
+
+Each task split gets its own branch, chained from the previous split's branch. This keeps all splits under the same root task while allowing independent review per split.
+
+**Branch naming convention:** `<task-branch>/split-N` (e.g., `feature/my-task/split-1`, `feature/my-task/split-2`)
 
 ```bash
 git fetch origin
@@ -287,9 +292,17 @@ $DEFAULT_BRANCH = (git symbolic-ref refs/remotes/origin/HEAD) -replace 'refs/rem
 DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
 ```
 
+**Split 1** — branch from the default branch:
 ```bash
-git checkout -b <branch-name> origin/$DEFAULT_BRANCH || git checkout <branch-name>
+git checkout -b <task-branch>/split-1 origin/$DEFAULT_BRANCH
 ```
+
+**Split N (N > 1)** — branch from the previous split:
+```bash
+git checkout -b <task-branch>/split-N <task-branch>/split-<N-1>
+```
+
+Store the current split branch name in `forge-state.md` under `current-branch`.
 
 #### 6. Initialize State File
 
@@ -304,6 +317,8 @@ deep-review-round: 0
 hard-cap-deep-review: 5
 status: running
 phase: execution
+task-branch: <task-branch>
+current-branch: <task-branch>/split-1
 ---
 
 ## Dependency Graph
@@ -359,6 +374,10 @@ Repeat for each split in order:
 
 ```
 SPLIT START (put the clay on the wheel)
+  Create split branch:
+    If split 1 → already on <task-branch>/split-1 from setup
+    If split N > 1 → git checkout -b <task-branch>/split-N <task-branch>/split-<N-1>
+  Update forge-state.md: current-branch = <task-branch>/split-N
   Read plan split definition from disk
   Build dependency graph: file → dependencies[]
   Reset agent status map and iteration count
@@ -542,23 +561,19 @@ SPLIT START (put the clay on the wheel)
 
        Do NOT use `git add .` or `git add -A`. Only stage files that code agents were assigned to modify.
 
-       Before pushing:
+       Before pushing, rebase against the parent branch:
        ```bash
        git fetch origin
        ```
 
-       **Cross-platform default branch detection:**
-       ```powershell
-       # PowerShell
-       $DEFAULT_BRANCH = (git symbolic-ref refs/remotes/origin/HEAD) -replace 'refs/remotes/origin/', ''
-       ```
-       ```bash
-       # Bash
-       DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
-       ```
-
+       For **split 1** — rebase against the default branch:
        ```bash
        git rebase origin/$DEFAULT_BRANCH
+       ```
+
+       For **split N > 1** — rebase against the previous split's branch:
+       ```bash
+       git rebase origin/<task-branch>/split-<N-1>
        ```
 
        If rebase **fails** (conflicts):
@@ -573,10 +588,10 @@ SPLIT START (put the clay on the wheel)
        - Is concise and meaningful
        - Follows the host environment's commit trailer policy. If the environment requires `Co-authored-by` or other trailers, include them. If no policy exists, omit agent signatures.
 
-       Commit and push:
+       Commit and push to the current split branch:
        ```bash
        git commit -m "<meaningful message>"
-       git push origin <branch-name>
+       git push origin <task-branch>/split-N
        ```
 
     ### Rollback & Retry Strategy
@@ -781,12 +796,13 @@ Once all three deep review perspectives are satisfied:
    ```
    All done.
 
-   Branch   : [branch name]
-   Commits  : [N total]
+   Branches : [list all split branches: <task-branch>/split-1, split-2, ...]
+   Commits  : [N total across all splits]
    Log      : [path to forge-task-log.md]
 
    Deep review passed after [N] round(s).
-   Create a PR from this branch when you're ready for team review.
+   Create PRs from each split branch when you're ready for team review.
+   Each split branch chains from the previous — review and merge in order.
    ```
 
 3. Offer cleanup:
@@ -837,3 +853,4 @@ Do not merge. Hand off to the user.
 - Deep review runs locally against the branch diff — no PR required.
 - Always use dynamic default branch detection — never hardcode main or master.
 - Always dispatch agents explicitly using task(agent_type='foundry/<agent-name>') — never use vague instructions.
+- Each split gets its own branch (<task-branch>/split-N), chained from the previous split. Never put all splits on one branch.

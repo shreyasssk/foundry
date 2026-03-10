@@ -111,6 +111,7 @@ copilot plugin install shshivakumar_microsoft/foundry
 
 ## Version
 
+- **v1.3.0** — Per-split branching: each split gets its own branch (`<task>/split-N`), chained from the previous split for ordered review and merge
 - **v1.2.3** — Final polish: typo fix, scribe entry naming, deep review cap in README, design verifier skip logic, consistent RALPH wording
 - **v1.2.2** — Doc polish: aligned phase numbering, clarified build gate flow, unified dependency severity, consistent split limits, typo fixes
 - **v1.2.1** — Cleanup: removed per-split build gate remnant, unified rollback to checkpoint tags, cross-platform commands in Forge, plain-language convergence throughout, removed dev markers
