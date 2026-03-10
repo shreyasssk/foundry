@@ -185,12 +185,28 @@ If **READY**:
 
 ## Phase 5 — Final Confirmation
 
-Present a concise execution preview:
+Present a concise execution preview.
+
+**Branch naming preference:** If the plan specifies a branch name, use it. If not (or the user wants to customize), ask once here — before execution begins:
+
+```
+Branch naming — what prefix should I use for split branches?
+
+Common patterns:
+  1. user/<alias>/<task-name>/split-N    (e.g., user/johndoe/my-feature/split-1)
+  2. feature/<task-name>/split-N          (e.g., feature/add-auth/split-1)
+  3. forge/<task-name>/split-N            (e.g., forge/add-auth/split-1)
+  4. Custom prefix
+
+Your preference? (or press Enter for option 3)
+```
+
+Once confirmed, show the full execution preview:
 
 ```
 ## Ready to Forge
 
-Branch   : [branch name from plan]
+Branch   : [confirmed branch prefix]/split-1..N
 Splits   : [N splits — list them with their file counts]
 Strategy : One code agent per file, parallel within dependency constraints
            Verifiers (plan every iteration; architecture + design at split completion)
@@ -227,18 +243,26 @@ If any preflight check fails, do NOT proceed. Report the failure and wait for th
 
 #### 2. Forge File Hygiene
 
-Ensure forge artifacts don't pollute version control:
+Ensure forge artifacts don't pollute version control. Check for BOTH patterns (`.md` and `.patch`) — an existing `.gitignore` may have an older forge entry that only covers `.md`:
 
 **Windows (PowerShell):**
 ```powershell
-if (-not (Test-Path .gitignore) -or -not (Select-String -Path .gitignore -Pattern 'forge-\*\.md' -Quiet)) {
-    Add-Content -Path .gitignore -Value "`n# Forge orchestration artifacts`nforge-*.md`nforge-*.patch"
+$gitignore = if (Test-Path .gitignore) { Get-Content .gitignore -Raw } else { '' }
+$needsMd = $gitignore -notmatch 'forge-\*\.md'
+$needsPatch = $gitignore -notmatch 'forge-\*\.patch'
+if ($needsMd -or $needsPatch) {
+    $additions = "`n# Forge orchestration artifacts"
+    if ($needsMd) { $additions += "`nforge-*.md" }
+    if ($needsPatch) { $additions += "`nforge-*.patch" }
+    Add-Content -Path .gitignore -Value $additions
 }
 ```
 
 **Unix (bash):**
 ```bash
-grep -q 'forge-\*\.md' .gitignore 2>/dev/null || echo -e '\n# Forge orchestration artifacts\nforge-*.md\nforge-*.patch' >> .gitignore
+touch .gitignore
+grep -q 'forge-\*\.md' .gitignore || echo -e '\n# Forge orchestration artifacts\nforge-*.md' >> .gitignore
+grep -q 'forge-\*\.patch' .gitignore || echo 'forge-*.patch' >> .gitignore
 ```
 
 If `.gitignore` doesn't exist, create it with the forge pattern. If modifying `.gitignore`, stage and commit it immediately with message: `chore: add forge artifacts to .gitignore`.
@@ -276,21 +300,7 @@ Branching: per-split (<task-branch>/split-1, split-2, ...)
 
 Each task split gets its own branch, chained from the previous split's branch. This keeps all splits under the same root task while allowing independent review per split.
 
-**Branch naming preference:** Before creating branches, ask the user if they have a preferred branch prefix or naming convention. Many teams use patterns like `user/<alias>/<name>` or `feature/<name>`. Present:
-
-```
-Branch naming — what prefix should I use for split branches?
-
-Common patterns:
-  1. user/<alias>/<task-name>/split-N    (e.g., user/johndoe/my-feature/split-1)
-  2. feature/<task-name>/split-N          (e.g., feature/add-auth/split-1)
-  3. forge/<task-name>/split-N            (e.g., forge/add-auth/split-1)
-  4. Custom prefix
-
-Your preference? (or press Enter for option 3)
-```
-
-Use the user's chosen prefix as `<task-branch>`. If they provide a full branch name, use it directly. The split suffix `/split-N` is always appended automatically.
+Use the branch prefix confirmed by the user in Phase 5. The split suffix `/split-N` is always appended automatically.
 
 **Branch naming convention:** `<task-branch>/split-N` (e.g., `user/johndoe/my-feature/split-1`, `feature/my-task/split-2`)
 
@@ -300,14 +310,18 @@ Use the user's chosen prefix as `<task-branch>`. If they provide a full branch n
 git fetch origin
 ```
 
-**Cross-platform default branch detection:**
+**Cross-platform default branch detection (with fallback):**
 ```powershell
-# PowerShell
-$DEFAULT_BRANCH = (git symbolic-ref refs/remotes/origin/HEAD) -replace 'refs/remotes/origin/', ''
+# PowerShell — with fallback if origin/HEAD is not set
+$DEFAULT_BRANCH = (git symbolic-ref refs/remotes/origin/HEAD 2>$null) -replace 'refs/remotes/origin/', ''
+if (-not $DEFAULT_BRANCH) {
+    $DEFAULT_BRANCH = if (git rev-parse --verify origin/main 2>$null) { 'main' } else { 'master' }
+}
 ```
 ```bash
-# Bash
-DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+# Bash — with fallback if origin/HEAD is not set
+DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo main || echo master)
 ```
 
 **Split 1** — branch from the default branch (but prefer existing remote if resuming):
@@ -523,8 +537,13 @@ SPLIT START (put the clay on the wheel)
 
        ```powershell
        # PowerShell — use UTF8 encoding (default > produces UTF-16 which breaks git apply)
-       git diff HEAD -- <file1> | Out-File -Encoding UTF8 forge-diff-file1.patch
-       git diff HEAD -- <file2> | Out-File -Encoding UTF8 forge-diff-file2.patch
+       # PowerShell — use UTF8NoBOM to avoid BOM issues with git apply
+       # PowerShell 7+: Out-File -Encoding utf8NoBOM
+       # PowerShell 5.1: [IO.File]::WriteAllText($path, (git diff HEAD -- <file> | Out-String))
+       git diff HEAD -- <file1> | Out-File -Encoding utf8NoBOM forge-diff-file1.patch
+       git diff HEAD -- <file2> | Out-File -Encoding utf8NoBOM forge-diff-file2.patch
+       # Fallback for PowerShell 5.1 (no utf8NoBOM):
+       # [IO.File]::WriteAllText("forge-diff-file1.patch", (git diff HEAD -- <file1> | Out-String), [Text.UTF8Encoding]::new($false))
        ```
        ```bash
        # Bash
@@ -770,17 +789,27 @@ Deep review runs locally against the current branch's diff from the default bran
 
 Generate the full diff:
 
-**Cross-platform default branch detection:**
+**Cross-platform default branch detection (with fallback):**
 ```powershell
 # PowerShell
-$DEFAULT_BRANCH = (git symbolic-ref refs/remotes/origin/HEAD) -replace 'refs/remotes/origin/', ''
+$DEFAULT_BRANCH = (git symbolic-ref refs/remotes/origin/HEAD 2>$null) -replace 'refs/remotes/origin/', ''
+if (-not $DEFAULT_BRANCH) {
+    $DEFAULT_BRANCH = if (git rev-parse --verify origin/main 2>$null) { 'main' } else { 'master' }
+}
 ```
 ```bash
 # Bash
-DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo main || echo master)
 ```
 
+```powershell
+# PowerShell
+git diff "origin/$DEFAULT_BRANCH..HEAD" | Out-File -Encoding utf8NoBOM forge-deep-review-diff.patch
+# Fallback for PowerShell 5.1: [IO.File]::WriteAllText("forge-deep-review-diff.patch", (git diff "origin/$DEFAULT_BRANCH..HEAD" | Out-String), [Text.UTF8Encoding]::new($false))
+```
 ```bash
+# Bash
 git diff origin/$DEFAULT_BRANCH..HEAD > forge-deep-review-diff.patch
 ```
 
@@ -832,14 +861,18 @@ For each round of deep review feedback:
      git fetch origin
      ```
 
-     **Cross-platform default branch detection:**
+     **Cross-platform default branch detection (with fallback):**
      ```powershell
      # PowerShell
-     $DEFAULT_BRANCH = (git symbolic-ref refs/remotes/origin/HEAD) -replace 'refs/remotes/origin/', ''
+     $DEFAULT_BRANCH = (git symbolic-ref refs/remotes/origin/HEAD 2>$null) -replace 'refs/remotes/origin/', ''
+     if (-not $DEFAULT_BRANCH) {
+         $DEFAULT_BRANCH = if (git rev-parse --verify origin/main 2>$null) { 'main' } else { 'master' }
+     }
      ```
      ```bash
      # Bash
-     DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+     DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+     [ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo main || echo master)
      ```
 
      For **single-split tasks** (only split-1) — rebase against the default branch:
@@ -901,6 +934,7 @@ Once all three deep review perspectives are satisfied:
    - forge-task-log.md
    - forge-summary-*.md
    - forge-diff-*.patch
+   - forge-coordination-archive.md
    - forge-deep-review-diff.patch
 
    These are in .gitignore and won't be committed.
@@ -958,11 +992,11 @@ Do not merge. Hand off to the user.
 - Always use dynamic default branch detection — never hardcode main or master.
 - Always dispatch agents explicitly using task(agent_type='foundry/<agent-name>') — never use vague instructions.
 - Each split gets its own branch (<task-branch>/split-N), chained from the previous split. Never put all splits on one branch.
-- Always ask the user for their branch naming preference/prefix before creating branches — common patterns include `user/<alias>/<name>`, `feature/<name>`, `forge/<name>`.
+- Always ask the user for their branch naming preference/prefix in Phase 5 (before execution) — never duplicate the prompt in Phase 6.
 - Always check for an existing branch (local → remote) BEFORE creating a new one from a parent — this prevents resume divergence.
 - When creating split-N branches, always include `origin/<task-branch>/split-<N-1>` as a final fallback parent for fresh-environment resume.
 - Always provide both PowerShell and Bash variants for shell commands. Never use bash-only syntax (e.g., `2>/dev/null`) in PowerShell blocks — use `2>$null` or try/catch instead.
-- Always use `Out-File -Encoding UTF8` (or `| Set-Content -Encoding UTF8`) in PowerShell when writing patch/diff files — default `>` produces UTF-16 which breaks git apply.
+- Always use `Out-File -Encoding utf8NoBOM` (PowerShell 7+) or `[IO.File]::WriteAllText` with `[Text.UTF8Encoding]::new($false)` (PowerShell 5.1) when writing patch/diff files — default `>` produces UTF-16, and `-Encoding UTF8` adds a BOM, both of which break git apply.
 - Always slugify branch names in checkpoint tags (replace `/` with `-`) to prevent git ref path conflicts with hierarchical branch names.
 - When extending the hard cap, always persist the new value to `hard-cap-iterations` in `forge-state.md` before continuing.
 - When the deep review diff exceeds ~80k characters, chunk it into per-file batches and run parallel deep review agents per batch, then synthesize.
