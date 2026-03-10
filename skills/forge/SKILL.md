@@ -185,9 +185,22 @@ If **READY**:
 
 ## Phase 5 — Final Confirmation
 
-Present a concise execution preview.
+Present a concise execution preview. Before showing the preview, collect two key decisions from the user:
 
-**Branch naming preference:** If the plan specifies a branch name, use it. If not (or the user wants to customize), ask once here — before execution begins:
+**1. Base branch:** Ask the user which branch to create splits from:
+
+```
+What branch should I create the first split from?
+
+This is the base branch that split-1 will branch off of.
+Common choices: main, master, develop, build/main/latest
+
+Your base branch?
+```
+
+Store this as `$BASE_BRANCH` — used instead of auto-detection throughout.
+
+**2. Branch naming preference:** If the plan specifies a branch name, use it. If not (or the user wants to customize), ask:
 
 ```
 Branch naming — what prefix should I use for split branches?
@@ -201,13 +214,31 @@ Common patterns:
 Your preference? (or press Enter for option 3)
 ```
 
-Once confirmed, show the full execution preview:
+**3. Split relationship:** If the plan has multiple splits, ask:
+
+```
+Are the splits in this task chained (each builds on the previous)?
+
+  1. Yes — chained (split-2 branches from split-1, split-3 from split-2, etc.)
+     Use this when all splits are part of the same feature/change.
+  2. No — they are independent/unrelated changes
+
+Your choice?
+```
+
+If the user chooses **independent**: Advise them to run Forge separately for each split — independent changes should not share a branch chain. Offer to proceed with just the first split, or let the user pick which split to execute.
+
+If the user chooses **chained**: Proceed with the normal per-split branching flow.
+
+Once all decisions are confirmed, show the full execution preview:
 
 ```
 ## Ready to Forge
 
+Base     : [base branch]
 Branch   : [confirmed branch prefix]/split-1..N
 Splits   : [N splits — list them with their file counts]
+Chaining : [chained / independent]
 Strategy : One code agent per file, parallel within dependency constraints
            Verifiers (plan every iteration; architecture + design at split completion)
            Build gate after all splits complete, before deep review
@@ -300,7 +331,7 @@ Branching: per-split (<task-branch>/split-1, split-2, ...)
 
 Each task split gets its own branch, chained from the previous split's branch. This keeps all splits under the same root task while allowing independent review per split.
 
-Use the branch prefix confirmed by the user in Phase 5. The split suffix `/split-N` is always appended automatically.
+Use the branch prefix and base branch confirmed by the user in Phase 5. The split suffix `/split-N` is always appended automatically. Store `$BASE_BRANCH` from the user's Phase 5 answer.
 
 **Branch naming convention:** `<task-branch>/split-N` (e.g., `user/johndoe/my-feature/split-1`, `feature/my-task/split-2`)
 
@@ -310,31 +341,16 @@ Use the branch prefix confirmed by the user in Phase 5. The split suffix `/split
 git fetch origin
 ```
 
-**Cross-platform default branch detection (with fallback):**
-```powershell
-# PowerShell — with fallback if origin/HEAD is not set
-$DEFAULT_BRANCH = (git symbolic-ref refs/remotes/origin/HEAD 2>$null) -replace 'refs/remotes/origin/', ''
-if (-not $DEFAULT_BRANCH) {
-    $DEFAULT_BRANCH = if (git rev-parse --verify origin/main 2>$null) { 'main' } else { 'master' }
-}
-```
-```bash
-# Bash — with fallback if origin/HEAD is not set
-DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
-[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo main || echo master)
-```
-
-**Split 1** — branch from the default branch (but prefer existing remote if resuming):
+**Split 1** — branch from the user-specified base branch (prefer existing if resuming):
 ```powershell
 # PowerShell — check for existing branch first (resume-safe), then create fresh
 $splitBranch = "<task-branch>/split-1"
 git checkout $splitBranch 2>$null
 if ($LASTEXITCODE -ne 0) {
-    # Not local — try tracking from origin (resume on fresh machine)
     git checkout -b $splitBranch "origin/$splitBranch" 2>$null
     if ($LASTEXITCODE -ne 0) {
-        # Truly new — create from default branch
-        git checkout -b $splitBranch "origin/$DEFAULT_BRANCH"
+        # Truly new — create from user-specified base branch
+        git checkout -b $splitBranch "origin/$BASE_BRANCH"
     }
 }
 ```
@@ -342,7 +358,7 @@ if ($LASTEXITCODE -ne 0) {
 # Bash — check for existing branch first (resume-safe), then create fresh
 git checkout <task-branch>/split-1 2>/dev/null \
   || git checkout -b <task-branch>/split-1 origin/<task-branch>/split-1 2>/dev/null \
-  || git checkout -b <task-branch>/split-1 origin/$DEFAULT_BRANCH
+  || git checkout -b <task-branch>/split-1 origin/$BASE_BRANCH
 ```
 
 **Split N (N > 1)** — branch from the previous split (with full fallback chain):
@@ -352,13 +368,10 @@ $splitBranch = "<task-branch>/split-N"
 $parentBranch = "<task-branch>/split-<N-1>"
 git checkout $splitBranch 2>$null
 if ($LASTEXITCODE -ne 0) {
-    # Not local — try tracking from origin
     git checkout -b $splitBranch "origin/$splitBranch" 2>$null
     if ($LASTEXITCODE -ne 0) {
-        # Branch doesn't exist anywhere — create from local parent
         git checkout -b $splitBranch $parentBranch 2>$null
         if ($LASTEXITCODE -ne 0) {
-            # Local parent missing — try remote parent
             git checkout -b $splitBranch "origin/$parentBranch"
         }
     }
@@ -388,7 +401,9 @@ hard-cap-deep-review: 5
 status: running
 phase: execution
 task-branch: <task-branch>
+base-branch: <base-branch>
 current-branch: <task-branch>/split-1
+chained: true
 ---
 
 ## Dependency Graph
@@ -649,9 +664,9 @@ SPLIT START (put the clay on the wheel)
        git fetch origin
        ```
 
-       For **split 1** — rebase against the default branch:
+       For **split 1** — rebase against the user-specified base branch:
        ```bash
-       git rebase origin/$DEFAULT_BRANCH
+       git rebase origin/$BASE_BRANCH
        ```
 
        For **split N > 1** — rebase against the previous split's branch:
@@ -785,36 +800,22 @@ Update `forge-state.md`: set `phase: deep-review`.
 
 ### Step 1 — Run Deep Review
 
-Deep review runs locally against the current branch's diff from the default branch.
+Deep review runs locally against the current branch's diff from the base branch (specified by the user in Phase 5, stored as `$BASE_BRANCH`).
 
 Generate the full diff:
 
-**Cross-platform default branch detection (with fallback):**
 ```powershell
 # PowerShell
-$DEFAULT_BRANCH = (git symbolic-ref refs/remotes/origin/HEAD 2>$null) -replace 'refs/remotes/origin/', ''
-if (-not $DEFAULT_BRANCH) {
-    $DEFAULT_BRANCH = if (git rev-parse --verify origin/main 2>$null) { 'main' } else { 'master' }
-}
+git diff "origin/$BASE_BRANCH..HEAD" | Out-File -Encoding utf8NoBOM forge-deep-review-diff.patch
+# Fallback for PowerShell 5.1: [IO.File]::WriteAllText("forge-deep-review-diff.patch", (git diff "origin/$BASE_BRANCH..HEAD" | Out-String), [Text.UTF8Encoding]::new($false))
 ```
 ```bash
 # Bash
-DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
-[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo main || echo master)
-```
-
-```powershell
-# PowerShell
-git diff "origin/$DEFAULT_BRANCH..HEAD" | Out-File -Encoding utf8NoBOM forge-deep-review-diff.patch
-# Fallback for PowerShell 5.1: [IO.File]::WriteAllText("forge-deep-review-diff.patch", (git diff "origin/$DEFAULT_BRANCH..HEAD" | Out-String), [Text.UTF8Encoding]::new($false))
-```
-```bash
-# Bash
-git diff origin/$DEFAULT_BRANCH..HEAD > forge-deep-review-diff.patch
+git diff origin/$BASE_BRANCH..HEAD > forge-deep-review-diff.patch
 ```
 
 **Large diff handling**: If the diff exceeds ~80,000 characters (roughly half the context window for most models):
-1. Split the diff into per-file chunks: `git diff origin/$DEFAULT_BRANCH..HEAD -- <file>` for each changed file
+1. Split the diff into per-file chunks: `git diff origin/$BASE_BRANCH..HEAD -- <file>` for each changed file
 2. Group files into batches that fit within context (~80k chars each)
 3. Dispatch one set of 3 deep-review agents PER BATCH (architect/advocate/skeptic)
 4. After all batches complete, dispatch a final synthesis round where each perspective receives a summary of their own per-batch findings and produces a unified verdict
@@ -861,23 +862,9 @@ For each round of deep review feedback:
      git fetch origin
      ```
 
-     **Cross-platform default branch detection (with fallback):**
-     ```powershell
-     # PowerShell
-     $DEFAULT_BRANCH = (git symbolic-ref refs/remotes/origin/HEAD 2>$null) -replace 'refs/remotes/origin/', ''
-     if (-not $DEFAULT_BRANCH) {
-         $DEFAULT_BRANCH = if (git rev-parse --verify origin/main 2>$null) { 'main' } else { 'master' }
-     }
-     ```
+     For **single-split tasks** (only split-1) — rebase against the base branch:
      ```bash
-     # Bash
-     DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
-     [ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo main || echo master)
-     ```
-
-     For **single-split tasks** (only split-1) — rebase against the default branch:
-     ```bash
-     git rebase origin/$DEFAULT_BRANCH
+     git rebase origin/$BASE_BRANCH
      ```
 
      For **multi-split tasks** — rebase against the parent of the current (last) split branch:
@@ -989,7 +976,8 @@ Do not merge. Hand off to the user.
 - Architecture doc is required — if not provided, block execution and ask the user.
 - Build gate runs once after all splits complete, before deep review — not during the RALPH loop.
 - Deep review runs locally against the branch diff — no PR required.
-- Always use dynamic default branch detection — never hardcode main or master.
+- Always ask the user for the base branch in Phase 5 — never auto-detect or hardcode main/master.
+- Always ask the user if splits are chained or independent in Phase 5 — independent splits should be separate Forge executions.
 - Always dispatch agents explicitly using task(agent_type='foundry/<agent-name>') — never use vague instructions.
 - Each split gets its own branch (<task-branch>/split-N), chained from the previous split. Never put all splits on one branch.
 - Always ask the user for their branch naming preference/prefix in Phase 5 (before execution) — never duplicate the prompt in Phase 6.
