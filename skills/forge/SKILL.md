@@ -278,6 +278,8 @@ Each task split gets its own branch, chained from the previous split's branch. T
 
 **Branch naming convention:** `<task-branch>/split-N` (e.g., `feature/my-task/split-1`, `feature/my-task/split-2`)
 
+**Important:** The task branch name (`<task-branch>`) must NOT be an existing branch name. Use a path-style name like `forge/<task-name>` or `feature/<task-name>` — this ensures `<task-branch>/split-N` won't collide with existing refs. If `<task-branch>` exists as a branch, prefix it: `forge/<task-branch>`.
+
 ```bash
 git fetch origin
 ```
@@ -294,12 +296,14 @@ DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remote
 
 **Split 1** — branch from the default branch:
 ```bash
-git checkout -b <task-branch>/split-1 origin/$DEFAULT_BRANCH
+# Create new branch, or switch to existing if resuming
+git checkout -b <task-branch>/split-1 origin/$DEFAULT_BRANCH 2>/dev/null || git checkout <task-branch>/split-1
 ```
 
 **Split N (N > 1)** — branch from the previous split:
 ```bash
-git checkout -b <task-branch>/split-N <task-branch>/split-<N-1>
+# Create new branch, or switch to existing if resuming
+git checkout -b <task-branch>/split-N <task-branch>/split-<N-1> 2>/dev/null || git checkout <task-branch>/split-N
 ```
 
 Store the current split branch name in `forge-state.md` under `current-branch`.
@@ -376,7 +380,7 @@ Repeat for each split in order:
 SPLIT START (put the clay on the wheel)
   Create split branch:
     If split 1 → already on <task-branch>/split-1 from setup
-    If split N > 1 → git checkout -b <task-branch>/split-N <task-branch>/split-<N-1>
+    If split N > 1 → git checkout -b <task-branch>/split-N <task-branch>/split-<N-1> 2>/dev/null || git checkout <task-branch>/split-N
   Update forge-state.md: current-branch = <task-branch>/split-N
   Read plan split definition from disk
   Build dependency graph: file → dependencies[]
@@ -597,9 +601,9 @@ SPLIT START (put the clay on the wheel)
     ### Rollback & Retry Strategy
 
     **Git checkpoint**: Before starting each split's execution:
-    1. Create a checkpoint tag: `git tag forge-checkpoint-split-N` on the current HEAD
+    1. Create a checkpoint tag: `git tag forge-checkpoint-<task-branch>-split-N` on the current HEAD (namespaced by task branch to prevent collisions across concurrent forge tasks)
     2. If the split fails after 10 iterations (hard cap), offer:
-       - Revert to checkpoint: `git revert --no-commit forge-checkpoint-split-N..HEAD && git commit -m "Revert split N (forge rollback)" && git push origin <branch-name>`
+       - Revert to checkpoint: `git revert --no-commit forge-checkpoint-<task-branch>-split-N..HEAD && git commit -m "Revert split N (forge rollback)" && git push origin <branch-name>`
        - Keep partial work and continue to next split
        - Stop and let user intervene
 
@@ -667,6 +671,8 @@ After all splits are done:
 ### Post-Execution Build Gate
 
 After ALL splits are complete and before Deep Review:
+
+The build gate runs on the LAST split's branch (`<task-branch>/split-N`), which contains all changes from all prior splits via chaining.
 
 1. Run FULL project build. Auto-detect from repo:
    ```
@@ -765,8 +771,15 @@ For each round of deep review feedback:
      DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
      ```
 
+     For **single-split tasks** (only split-1) — rebase against the default branch:
      ```bash
      git rebase origin/$DEFAULT_BRANCH
+     ```
+
+     For **multi-split tasks** — rebase against the parent of the current (last) split branch:
+     ```bash
+     # If on split-N where N > 1, rebase against the previous split
+     git rebase origin/<task-branch>/split-<N-1>
      ```
    - Meaningful commit message referencing the deep review concern addressed
    - Follow host environment's commit trailer policy
@@ -796,7 +809,7 @@ Once all three deep review perspectives are satisfied:
    ```
    All done.
 
-   Branches : [list all split branches: <task-branch>/split-1, split-2, ...]
+   Branches : [list all split branches: <task-branch>/split-1, <task-branch>/split-2, ..., <task-branch>/split-N]
    Commits  : [N total across all splits]
    Log      : [path to forge-task-log.md]
 
