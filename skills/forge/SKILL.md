@@ -295,15 +295,44 @@ DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remote
 ```
 
 **Split 1** — branch from the default branch:
+```powershell
+# PowerShell — create new branch, or switch to existing (including remote tracking)
+try { git checkout -b <task-branch>/split-1 origin/$DEFAULT_BRANCH 2>$null }
+catch { }
+if ($LASTEXITCODE -ne 0) {
+    # Branch already exists locally or remotely — switch to it
+    git checkout <task-branch>/split-1 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        # Not local — try tracking from origin
+        git checkout -b <task-branch>/split-1 origin/<task-branch>/split-1
+    }
+}
+```
 ```bash
-# Create new branch, or switch to existing if resuming
-git checkout -b <task-branch>/split-1 origin/$DEFAULT_BRANCH 2>/dev/null || git checkout <task-branch>/split-1
+# Bash — create new branch, or switch to existing (including remote tracking)
+git checkout -b <task-branch>/split-1 origin/$DEFAULT_BRANCH 2>/dev/null \
+  || git checkout <task-branch>/split-1 2>/dev/null \
+  || git checkout -b <task-branch>/split-1 origin/<task-branch>/split-1
 ```
 
 **Split N (N > 1)** — branch from the previous split:
+```powershell
+# PowerShell — create new branch, or switch to existing (including remote tracking)
+try { git checkout -b <task-branch>/split-N <task-branch>/split-<N-1> 2>$null }
+catch { }
+if ($LASTEXITCODE -ne 0) {
+    git checkout <task-branch>/split-N 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        # Not local — try tracking from origin
+        git checkout -b <task-branch>/split-N origin/<task-branch>/split-N
+    }
+}
+```
 ```bash
-# Create new branch, or switch to existing if resuming
-git checkout -b <task-branch>/split-N <task-branch>/split-<N-1> 2>/dev/null || git checkout <task-branch>/split-N
+# Bash — create new branch, or switch to existing (including remote tracking)
+git checkout -b <task-branch>/split-N <task-branch>/split-<N-1> 2>/dev/null \
+  || git checkout <task-branch>/split-N 2>/dev/null \
+  || git checkout -b <task-branch>/split-N origin/<task-branch>/split-N
 ```
 
 Store the current split branch name in `forge-state.md` under `current-branch`.
@@ -380,7 +409,9 @@ Repeat for each split in order:
 SPLIT START (put the clay on the wheel)
   Create split branch:
     If split 1 → already on <task-branch>/split-1 from setup
-    If split N > 1 → git checkout -b <task-branch>/split-N <task-branch>/split-<N-1> 2>/dev/null || git checkout <task-branch>/split-N
+    If split N > 1:
+      PowerShell: try { git checkout -b <task-branch>/split-N <task-branch>/split-<N-1> 2>$null } catch {}; if ($LASTEXITCODE -ne 0) { git checkout <task-branch>/split-N 2>$null; if ($LASTEXITCODE -ne 0) { git checkout -b <task-branch>/split-N origin/<task-branch>/split-N } }
+      Bash: git checkout -b <task-branch>/split-N <task-branch>/split-<N-1> 2>/dev/null || git checkout <task-branch>/split-N 2>/dev/null || git checkout -b <task-branch>/split-N origin/<task-branch>/split-N
   Update forge-state.md: current-branch = <task-branch>/split-N
   Read plan split definition from disk
   Build dependency graph: file → dependencies[]
@@ -601,9 +632,11 @@ SPLIT START (put the clay on the wheel)
     ### Rollback & Retry Strategy
 
     **Git checkpoint**: Before starting each split's execution:
-    1. Create a checkpoint tag: `git tag forge-checkpoint-<task-branch>-split-N` on the current HEAD (namespaced by task branch to prevent collisions across concurrent forge tasks)
+    1. Create a checkpoint tag using a slugified branch name (replace `/` with `-`) to prevent git ref path conflicts:
+       `git tag forge-checkpoint--<task-branch-slugified>--split-N`
+       Example: branch `forge/my-task/split-1` → tag `forge-checkpoint--forge-my-task--split-1`
     2. If the split fails after 10 iterations (hard cap), offer:
-       - Revert to checkpoint: `git revert --no-commit forge-checkpoint-<task-branch>-split-N..HEAD && git commit -m "Revert split N (forge rollback)" && git push origin <branch-name>`
+       - Revert to checkpoint: `git revert --no-commit forge-checkpoint--<task-branch-slugified>--split-N..HEAD && git commit -m "Revert split N (forge rollback)" && git push origin <branch-name>`
        - Keep partial work and continue to next split
        - Stop and let user intervene
 
@@ -647,6 +680,7 @@ When the 10-iteration hard cap is reached without all verifiers approving — th
    4. Stop entirely — I'll review manually
    ```
 3. Wait for user decision. Do not proceed without explicit input.
+4. **If user chooses option 1 (extend)**: Update `hard-cap-iterations` in `forge-state.md` to the new value (15) before resuming. This ensures resume-safety — if the session is interrupted during the extended run, the state file reflects the correct cap.
 
 ---
 
@@ -720,6 +754,14 @@ DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remote
 ```bash
 git diff origin/$DEFAULT_BRANCH..HEAD > forge-deep-review-diff.patch
 ```
+
+**Large diff handling**: If the diff exceeds ~80,000 characters (roughly half the context window for most models):
+1. Split the diff into per-file chunks: `git diff origin/$DEFAULT_BRANCH..HEAD -- <file>` for each changed file
+2. Group files into batches that fit within context (~80k chars each)
+3. Dispatch one set of 3 deep-review agents PER BATCH (architect/advocate/skeptic)
+4. After all batches complete, dispatch a final synthesis round where each perspective receives a summary of their own per-batch findings and produces a unified verdict
+
+If the diff fits within context, dispatch all three agents with the full diff as below.
 
 Dispatch three parallel agents using the task tool:
 
@@ -867,3 +909,8 @@ Do not merge. Hand off to the user.
 - Always use dynamic default branch detection — never hardcode main or master.
 - Always dispatch agents explicitly using task(agent_type='foundry/<agent-name>') — never use vague instructions.
 - Each split gets its own branch (<task-branch>/split-N), chained from the previous split. Never put all splits on one branch.
+- Always provide both PowerShell and Bash variants for shell commands. Never use bash-only syntax (e.g., `2>/dev/null`) in PowerShell blocks — use `2>$null` or try/catch instead.
+- Always slugify branch names in checkpoint tags (replace `/` with `-`) to prevent git ref path conflicts with hierarchical branch names.
+- When a split branch already exists on the remote but not locally (resume scenario), always attempt `git checkout -b <branch> origin/<branch>` as a fallback after local checkout fails.
+- When extending the hard cap, always persist the new value to `hard-cap-iterations` in `forge-state.md` before continuing.
+- When the deep review diff exceeds ~80k characters, chunk it into per-file batches and run parallel deep review agents per batch, then synthesize.

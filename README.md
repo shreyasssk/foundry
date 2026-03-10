@@ -111,6 +111,7 @@ copilot plugin install shshivakumar_microsoft/foundry
 
 ## Version
 
+- **v1.3.2** — Cross-platform hardening: PowerShell-safe branch creation (no `/dev/null`), slugified checkpoint tags (no git ref path conflicts), remote-tracking fallback on resume, large-diff chunking for deep review, hard-cap extension persisted to state, origin fallback for parent-split branches
 - **v1.3.1** — Per-split branching fixes: deep review rebase targets, namespaced checkpoint tags, resume-safe branch creation, collision prevention
 - **v1.3.0** — Per-split branching: each split gets its own branch (`<task>/split-N`), chained from the previous split for ordered review and merge
 - **v1.2.3** — Final polish: typo fix, scribe entry naming, deep review cap in README, design verifier skip logic, consistent RALPH wording
