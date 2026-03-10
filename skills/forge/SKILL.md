@@ -276,9 +276,25 @@ Branching: per-split (<task-branch>/split-1, split-2, ...)
 
 Each task split gets its own branch, chained from the previous split's branch. This keeps all splits under the same root task while allowing independent review per split.
 
-**Branch naming convention:** `<task-branch>/split-N` (e.g., `feature/my-task/split-1`, `feature/my-task/split-2`)
+**Branch naming preference:** Before creating branches, ask the user if they have a preferred branch prefix or naming convention. Many teams use patterns like `user/<alias>/<name>` or `feature/<name>`. Present:
 
-**Important:** The task branch name (`<task-branch>`) must NOT be an existing branch name. Use a path-style name like `forge/<task-name>` or `feature/<task-name>` — this ensures `<task-branch>/split-N` won't collide with existing refs. If `<task-branch>` exists as a branch, prefix it: `forge/<task-branch>`.
+```
+Branch naming — what prefix should I use for split branches?
+
+Common patterns:
+  1. user/<alias>/<task-name>/split-N    (e.g., user/johndoe/my-feature/split-1)
+  2. feature/<task-name>/split-N          (e.g., feature/add-auth/split-1)
+  3. forge/<task-name>/split-N            (e.g., forge/add-auth/split-1)
+  4. Custom prefix
+
+Your preference? (or press Enter for option 3)
+```
+
+Use the user's chosen prefix as `<task-branch>`. If they provide a full branch name, use it directly. The split suffix `/split-N` is always appended automatically.
+
+**Branch naming convention:** `<task-branch>/split-N` (e.g., `user/johndoe/my-feature/split-1`, `feature/my-task/split-2`)
+
+**Important:** The task branch name (`<task-branch>`) must NOT be an existing branch name. Use a path-style name like `user/<alias>/<task-name>` or `feature/<task-name>` — this ensures `<task-branch>/split-N` won't collide with existing refs. If `<task-branch>` exists as a branch, prefix it: `forge/<task-branch>`.
 
 ```bash
 git fetch origin
@@ -294,45 +310,52 @@ $DEFAULT_BRANCH = (git symbolic-ref refs/remotes/origin/HEAD) -replace 'refs/rem
 DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
 ```
 
-**Split 1** — branch from the default branch:
+**Split 1** — branch from the default branch (but prefer existing remote if resuming):
 ```powershell
-# PowerShell — create new branch, or switch to existing (including remote tracking)
-try { git checkout -b <task-branch>/split-1 origin/$DEFAULT_BRANCH 2>$null }
-catch { }
+# PowerShell — check for existing branch first (resume-safe), then create fresh
+$splitBranch = "<task-branch>/split-1"
+git checkout $splitBranch 2>$null
 if ($LASTEXITCODE -ne 0) {
-    # Branch already exists locally or remotely — switch to it
-    git checkout <task-branch>/split-1 2>$null
+    # Not local — try tracking from origin (resume on fresh machine)
+    git checkout -b $splitBranch "origin/$splitBranch" 2>$null
     if ($LASTEXITCODE -ne 0) {
-        # Not local — try tracking from origin
-        git checkout -b <task-branch>/split-1 origin/<task-branch>/split-1
+        # Truly new — create from default branch
+        git checkout -b $splitBranch "origin/$DEFAULT_BRANCH"
     }
 }
 ```
 ```bash
-# Bash — create new branch, or switch to existing (including remote tracking)
-git checkout -b <task-branch>/split-1 origin/$DEFAULT_BRANCH 2>/dev/null \
-  || git checkout <task-branch>/split-1 2>/dev/null \
-  || git checkout -b <task-branch>/split-1 origin/<task-branch>/split-1
+# Bash — check for existing branch first (resume-safe), then create fresh
+git checkout <task-branch>/split-1 2>/dev/null \
+  || git checkout -b <task-branch>/split-1 origin/<task-branch>/split-1 2>/dev/null \
+  || git checkout -b <task-branch>/split-1 origin/$DEFAULT_BRANCH
 ```
 
-**Split N (N > 1)** — branch from the previous split:
+**Split N (N > 1)** — branch from the previous split (with full fallback chain):
 ```powershell
-# PowerShell — create new branch, or switch to existing (including remote tracking)
-try { git checkout -b <task-branch>/split-N <task-branch>/split-<N-1> 2>$null }
-catch { }
+# PowerShell — full fallback chain for resume safety
+$splitBranch = "<task-branch>/split-N"
+$parentBranch = "<task-branch>/split-<N-1>"
+git checkout $splitBranch 2>$null
 if ($LASTEXITCODE -ne 0) {
-    git checkout <task-branch>/split-N 2>$null
+    # Not local — try tracking from origin
+    git checkout -b $splitBranch "origin/$splitBranch" 2>$null
     if ($LASTEXITCODE -ne 0) {
-        # Not local — try tracking from origin
-        git checkout -b <task-branch>/split-N origin/<task-branch>/split-N
+        # Branch doesn't exist anywhere — create from local parent
+        git checkout -b $splitBranch $parentBranch 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            # Local parent missing — try remote parent
+            git checkout -b $splitBranch "origin/$parentBranch"
+        }
     }
 }
 ```
 ```bash
-# Bash — create new branch, or switch to existing (including remote tracking)
-git checkout -b <task-branch>/split-N <task-branch>/split-<N-1> 2>/dev/null \
-  || git checkout <task-branch>/split-N 2>/dev/null \
-  || git checkout -b <task-branch>/split-N origin/<task-branch>/split-N
+# Bash — full fallback chain for resume safety
+git checkout <task-branch>/split-N 2>/dev/null \
+  || git checkout -b <task-branch>/split-N origin/<task-branch>/split-N 2>/dev/null \
+  || git checkout -b <task-branch>/split-N <task-branch>/split-<N-1> 2>/dev/null \
+  || git checkout -b <task-branch>/split-N origin/<task-branch>/split-<N-1>
 ```
 
 Store the current split branch name in `forge-state.md` under `current-branch`.
@@ -409,9 +432,9 @@ Repeat for each split in order:
 SPLIT START (put the clay on the wheel)
   Create split branch:
     If split 1 → already on <task-branch>/split-1 from setup
-    If split N > 1:
-      PowerShell: try { git checkout -b <task-branch>/split-N <task-branch>/split-<N-1> 2>$null } catch {}; if ($LASTEXITCODE -ne 0) { git checkout <task-branch>/split-N 2>$null; if ($LASTEXITCODE -ne 0) { git checkout -b <task-branch>/split-N origin/<task-branch>/split-N } }
-      Bash: git checkout -b <task-branch>/split-N <task-branch>/split-<N-1> 2>/dev/null || git checkout <task-branch>/split-N 2>/dev/null || git checkout -b <task-branch>/split-N origin/<task-branch>/split-N
+    If split N > 1 (full fallback chain — check existing first, then create):
+      Bash: git checkout <split-N> || git checkout -b <split-N> origin/<split-N> || git checkout -b <split-N> <split-N-1> || git checkout -b <split-N> origin/<split-N-1>
+      PowerShell: same order — local → origin/self → local-parent → origin/parent
   Update forge-state.md: current-branch = <task-branch>/split-N
   Read plan split definition from disk
   Build dependency graph: file → dependencies[]
@@ -498,7 +521,13 @@ SPLIT START (put the clay on the wheel)
        - Or use the system temp directory: `$env:TEMP` (Windows) / `$TMPDIR` (Unix)
        - NEVER hardcode `/tmp/` — this fails on Windows
 
+       ```powershell
+       # PowerShell — use UTF8 encoding (default > produces UTF-16 which breaks git apply)
+       git diff HEAD -- <file1> | Out-File -Encoding UTF8 forge-diff-file1.patch
+       git diff HEAD -- <file2> | Out-File -Encoding UTF8 forge-diff-file2.patch
+       ```
        ```bash
+       # Bash
        git diff HEAD -- <file1> > forge-diff-file1.patch
        git diff HEAD -- <file2> > forge-diff-file2.patch
        ```
@@ -871,10 +900,30 @@ Once all three deep review perspectives are satisfied:
    - forge-verifier-design.md
    - forge-task-log.md
    - forge-summary-*.md
+   - forge-diff-*.patch
    - forge-deep-review-diff.patch
 
    These are in .gitignore and won't be committed.
    Would you like me to delete them? (They're useful for debugging if you keep them.)
+   ```
+
+4. Offer checkpoint tag cleanup:
+
+   ```
+   Forge created the following checkpoint tags:
+   [list all forge-checkpoint--*--split-* tags]
+
+   Would you like me to delete these tags? (They were used for rollback safety during execution.)
+   ```
+
+   If user confirms, delete tags locally and remotely:
+   ```powershell
+   # PowerShell
+   git tag -l "forge-checkpoint--*" | ForEach-Object { git tag -d $_; git push origin --delete $_ 2>$null }
+   ```
+   ```bash
+   # Bash
+   git tag -l 'forge-checkpoint--*' | xargs -I{} sh -c 'git tag -d {} && git push origin --delete {} 2>/dev/null'
    ```
 
 Do not merge. Hand off to the user.
@@ -909,8 +958,12 @@ Do not merge. Hand off to the user.
 - Always use dynamic default branch detection — never hardcode main or master.
 - Always dispatch agents explicitly using task(agent_type='foundry/<agent-name>') — never use vague instructions.
 - Each split gets its own branch (<task-branch>/split-N), chained from the previous split. Never put all splits on one branch.
+- Always ask the user for their branch naming preference/prefix before creating branches — common patterns include `user/<alias>/<name>`, `feature/<name>`, `forge/<name>`.
+- Always check for an existing branch (local → remote) BEFORE creating a new one from a parent — this prevents resume divergence.
+- When creating split-N branches, always include `origin/<task-branch>/split-<N-1>` as a final fallback parent for fresh-environment resume.
 - Always provide both PowerShell and Bash variants for shell commands. Never use bash-only syntax (e.g., `2>/dev/null`) in PowerShell blocks — use `2>$null` or try/catch instead.
+- Always use `Out-File -Encoding UTF8` (or `| Set-Content -Encoding UTF8`) in PowerShell when writing patch/diff files — default `>` produces UTF-16 which breaks git apply.
 - Always slugify branch names in checkpoint tags (replace `/` with `-`) to prevent git ref path conflicts with hierarchical branch names.
-- When a split branch already exists on the remote but not locally (resume scenario), always attempt `git checkout -b <branch> origin/<branch>` as a fallback after local checkout fails.
 - When extending the hard cap, always persist the new value to `hard-cap-iterations` in `forge-state.md` before continuing.
 - When the deep review diff exceeds ~80k characters, chunk it into per-file batches and run parallel deep review agents per batch, then synthesize.
+- Always offer to clean up checkpoint tags and per-file diff patches at task completion.
