@@ -23,10 +23,12 @@ Before asking for documents, check if a `forge-state.md` already exists in the w
    - Does the branch still exist? (`git branch --list <branch>`)
    - Are the split/iteration counters consistent?
    - Is the working tree clean? (`git status --porcelain`)
+   - Does `base-branch` exist? If missing (legacy state from pre-v1.3.5), ask the user to provide it before resuming.
 3. If valid, present to the user:
    ```
    Found existing Forge state:
      Branch    : <branch>
+     Base      : <base-branch>
      Split     : <N> / <total>
      Iteration : <I>
      Phase     : <phase>
@@ -403,7 +405,7 @@ phase: execution
 task-branch: <task-branch>
 base-branch: <base-branch>
 current-branch: <task-branch>/split-1
-chained: true
+chained: <true|false>
 ---
 
 ## Dependency Graph
@@ -456,6 +458,8 @@ Update `forge-state.md` after every step:
 > the clay is fired (committed). Then the next split goes on the wheel.
 
 Repeat for each split in order:
+
+**Important:** If the user chose "independent" splits in Phase 5, only ONE split should be executing in this Forge session. If multiple splits somehow reached Phase 6 with `chained: false` in forge-state.md, STOP and remind the user that independent splits require separate Forge executions.
 
 ```
 SPLIT START (put the clay on the wheel)

@@ -98,7 +98,7 @@ All agent dispatches use explicit `task(agent_type="foundry/<name>")` calls.
 - **Hard caps** — 10 rounds in Crucible, 10 iterations per split in Forge, 5 rounds of deep review
 - **Resume support** — both skills track state and can pick up where they left off
 - **Post-execution build gate** (Forge) — full build after all splits complete, before deep review
-- **Git safety** (Forge) — fetch/rebase before push, specific file staging, dynamic default branch detection
+- **Git safety** (Forge) — fetch/rebase before push, specific file staging, user-specified base branch
 - **Architecture required** (Forge) — architecture doc is mandatory for execution
 - **Local deep review** (Forge) — runs against branch diff, no PR needed
 - **Clean intermediates** — working files deleted, only outputs survive
@@ -111,6 +111,7 @@ copilot plugin install shshivakumar_microsoft/foundry
 
 ## Version
 
+- **v1.3.6** — Doc/state polish: README reflects user-prompted base branch, forge-state template uses dynamic chained flag, legacy state resume asks for missing base-branch, Phase 6 guard prevents independent splits from chaining
 - **v1.3.5** — User-prompted base branch (no auto-detection), split relationship check (chained vs independent), base-branch persisted in forge-state.md, removed all DEFAULT_BRANCH auto-detection code
 - **v1.3.4** — Default branch fallback (origin/HEAD → main → master), BOM-free UTF-8 patches (utf8NoBOM + PS 5.1 fallback), .gitignore upgrade detection, archive + diff patch cleanup, branch preference moved to Phase 5, Crucible file discovery uses git ls-files with 500 limit
 - **v1.3.3** — Resume-safe branch ordering (check existing before creating), user branch prefix preference prompt, UTF-8 patch encoding on PowerShell, checkpoint tag cleanup at completion, per-file diff patch cleanup, origin parent fallback for fresh-env resume
