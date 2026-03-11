@@ -1,131 +1,240 @@
-# Foundry — Complete AI Task Lifecycle
+# Foundry — AI-Powered Task Lifecycle for Copilot CLI
 
-> The foundry contains both the crucible (where plans are refined) and the forge (where code is shaped).
+> Plan with 3 AI models. Execute with coordinated agents. Ship with confidence.
 
-## Two Skills, One Workflow
+Foundry turns a task description into committed, pushed code through two skills: **Crucible** plans it, **Forge** builds it.
 
-| Skill | Trigger | What It Does |
-|-------|---------|-------------|
-| **foundry:crucible** | `/crucible`, "plan this", "design this task" | Multi-model plan refinery — 3 AI models converge on a Forge-compatible plan.md + optionally design-doc.md (complexity-aware) |
-| **foundry:forge** | `/forge`, "new task", "forge this" | Full task executor — takes plan → committed, pushed code via coordinated agents (adapts ceremony to task complexity) |
+## What You Get
 
-```
-Crucible (planning)  →  Forge (execution)
-─────────────────       ─────────────────
-Task description        plan.md (always)
-Architecture doc   →    design-doc.md (large tasks only)
-Codebase context        architecture doc (large tasks only)
-                        ↓
-                        Committed & pushed code
-                        (user creates PR)
-```
+| Skill | What It Does |
+|-------|-------------|
+| **Crucible** | Takes your task → 3 AI models independently plan it → cross-review each other → converge on a single plan |
+| **Forge** | Takes the plan → writes code file-by-file → verifies against plan/design/architecture → commits and pushes |
 
-## Crucible — Multi-Model Plan Refinery
+You go from "here's my work item" to "here's a branch with reviewed code" without writing a single line yourself.
 
-Takes a raw task and refines it through 3 AI models (Opus, Codex, Gemini) using the **RALPH Loop** — an adaptive convergence pattern where models cross-review each other until they agree. Convergence checks use plain-language descriptions to determine agreement.
-
-### Phases
-| Phase | Name | Description |
-|-------|------|-------------|
-| 1 | **Intake** | Resume check → collect task, docs, output dir → assess complexity (small/large) |
-| 1.5 | **Validation** | If existing plan/design doc provided, validate against Forge requirements before refining |
-| 2 | **Context** | Read inputs, assemble shared context packet (includes complexity) |
-| 3 | **Fleet Dispatch** | 3 models draft plan (+ design doc if large) via `task(agent_type="foundry/plan-drafter")` and optionally `task(agent_type="foundry/design-drafter")` |
-| 4 | **Convergence** | RALPH loop — cross-review with plain-language convergence checks until all 3 agree (max 10 rounds) |
-| 5 | **Validate** | Merge, validate against Forge's required fields |
-| 6 | **Output** | Write final files, cleanup intermediates |
-| 7 | **Actions** | Hand off to Forge or done |
-
-### Output
-- `plan.md` — Splits, file breakdowns, dependencies (DAG), acceptance criteria, **complexity classification**
-- `design-doc.md` — Problem, solution, types, APIs, error handling, alternatives **(large tasks only)**
-
-## Forge — Full Task Executor
-
-Takes Crucible's output (or user-provided docs) and executes the plan through coordinated agents. Pushes committed code to the remote branch — PR creation is the user's responsibility. Architecture doc is required for large tasks (small tasks skip it).
-
-### Phases
-| Phase | Name | Description |
-|-------|------|-------------|
-| 1 | **Gather** | Resume check → collect document locations |
-| 2 | **Locate** | Find and read all documents (architecture doc required for large tasks) |
-| 3 | **Analyze** | Extract requirements, validate plan, generate summaries |
-| 4 | **Readiness** | Structured report of gaps and warnings |
-| 5 | **Confirm** | Final execution preview with user approval |
-| 6 | **Execute** | RALPH loop per split + post-execution build gate |
-| 7 | **Review** | Local deep review with adversarial multi-perspective analysis |
-
-### The RALPH Loop
-
-**RALPH** (named after Ralph Wiggum) — an orchestrator pattern for persistent, self-correcting iteration. Allocate resources with backing specs, give them a goal, loop until done.
-
-> "Software is clay on the pottery wheel. If something isn't right, throw it back on the wheel."
-
-- **In Crucible**: Models cross-review plans until plain-language convergence
-- **In Forge**: Code agents iterate with verifier feedback until all checks pass
-
-## Agents
-
-All agent dispatches use explicit `task(agent_type="foundry/<name>")` calls.
-
-### Crucible Agents
-| Agent | Dispatch | Purpose |
-|-------|----------|---------|
-| `plan-drafter` | `task(agent_type="foundry/plan-drafter")` | Generates/revises Forge-compatible plan.md |
-| `design-drafter` | `task(agent_type="foundry/design-drafter")` | Generates/revises Forge-compatible design-doc.md |
-
-### Forge Agents
-| Agent | Dispatch | Purpose |
-|-------|----------|---------|
-| `code-agent` | `task(agent_type="foundry/code-agent")` | Per-file code implementation |
-| `plan-verifier` | `task(agent_type="foundry/plan-verifier")` | Checks code against plan (every iteration) |
-| `design-verifier` | `task(agent_type="foundry/design-verifier")` | Checks code against design doc (at split completion) |
-| `architecture-verifier` | `task(agent_type="foundry/architecture-verifier")` | Checks code against architecture (at split completion) |
-| `scribe` | `task(agent_type="foundry/scribe")` | Conditional task logging |
-
-> **Note:** The deep review step in Forge Phase 7 uses external agents from the **deep-review** plugin (`deep-review/architect`, `deep-review/advocate`, `deep-review/skeptic`) — these are NOT foundry agents.
-
-## Models Used (Crucible)
-
-| Model | ID | Strength |
-|-------|-----|----------|
-| Claude Opus | `claude-opus-4.6` | Deep reasoning, architecture |
-| GPT Codex | `gpt-5.1-codex-max` | Code-first planning |
-| Gemini Pro | `gemini-3-pro-preview` | Breadth, alternatives |
-
-## Safety Features
-
-- **Adaptive convergence** (Crucible) — plain-language convergence checks, never forces premature consensus
-- **Hard caps** — 10 rounds in Crucible, 10 iterations per split in Forge, 5 rounds of deep review
-- **Resume support** — both skills track state and can pick up where they left off
-- **Post-execution build gate** (Forge) — full build after all splits complete, before deep review
-- **Git safety** (Forge) — fetch/rebase before push, specific file staging, user-specified base branch
-- **Architecture required** (Forge) — architecture doc is mandatory for large tasks; small tasks skip it per Crucible's complexity assessment
-- **Local deep review** (Forge) — runs against branch diff, no PR needed
-- **Clean intermediates** — working files deleted, only outputs survive
+---
 
 ## Installation
 
-```bash
-copilot plugin install shshivakumar_microsoft/foundry
+### Prerequisites
+- [Copilot CLI](https://docs.github.com/copilot/concepts/agents/about-copilot-cli) installed
+- **deep-review** plugin (used by Forge's final review step):
+  ```
+  /plugin marketplace add agency agency-microsoft/.github-private
+  /plugin install deep-review@agency
+  ```
+
+### Install Foundry
+```
+/plugin install shshivakumar_microsoft/foundry
 ```
 
-## Version
+Or clone locally (works for private repos your team can't access):
+```powershell
+git clone https://github.com/shshivakumar_microsoft/foundry.git "$HOME\.claude\plugins\local\foundry"
+```
 
-- **v1.4.3** — Round 13 doc fixes: README Phase 1.5 aligned with SKILL.md (Phase 1 includes complexity, 1.5 = Validation), Phase 5 preview now complexity-aware for verifier text, scribe dispatch includes complexity field, deep-review fix loop verifier scope clarified, "two decisions" → "three", README Phase 2 arch doc qualified for large tasks, coordination file template covers small-task skip, Crucible context packet complexity instruction references plan-drafter template
-- **v1.4.2** — Round 12 fixes: Forge readiness now blocks on missing ## Complexity section and missing design doc for large tasks; Crucible Phase 5-6 fully complexity-aware (validation/cross-check/output/cleanup/hand-off all conditional on small vs large); Phase 6 design verifier skip path tightened for large tasks
-- **v1.4.1** — Complexity flow fixes (round 11 review): format mismatch between plan template (`Classification: small`) and Forge detection fixed, code-agent spec updated for conditional summaries, Phase 7 cleanup made dynamic (only lists existing files), resume backward compat for pre-v1.4.0 states, Crucible validation checks for ## Complexity section, convergence logic handles plan-only mode, plan-verifier checks complexity section integrity, README qualified for small-task paths, log message punctuation standardized
-- **v1.4.0** — Task complexity assessment: Crucible classifies tasks as small/large, recommends design doc decision. Forge reads complexity flag — skips design doc, architecture doc, and their verifiers for small tasks. Plan template includes `## Complexity` section. Scribe logs complexity and skipped verifiers. Caution messages shown when ceremony is reduced.
-- **v1.3.6** — Doc/state polish: README reflects user-prompted base branch, forge-state template uses dynamic chained flag, legacy state resume asks for missing base-branch, Phase 6 guard prevents independent splits from chaining
-- **v1.3.5** — User-prompted base branch (no auto-detection), split relationship check (chained vs independent), base-branch persisted in forge-state.md, removed all DEFAULT_BRANCH auto-detection code
-- **v1.3.4** — Default branch fallback (origin/HEAD → main → master), BOM-free UTF-8 patches (utf8NoBOM + PS 5.1 fallback), .gitignore upgrade detection, archive + diff patch cleanup, branch preference moved to Phase 5, Crucible file discovery uses git ls-files with 500 limit
-- **v1.3.3** — Resume-safe branch ordering (check existing before creating), user branch prefix preference prompt, UTF-8 patch encoding on PowerShell, checkpoint tag cleanup at completion, per-file diff patch cleanup, origin parent fallback for fresh-env resume
-- **v1.3.2** — Cross-platform hardening: PowerShell-safe branch creation (no `/dev/null`), slugified checkpoint tags (no git ref path conflicts), remote-tracking fallback on resume, large-diff chunking for deep review, hard-cap extension persisted to state, origin fallback for parent-split branches
-- **v1.3.1** — Per-split branching fixes: deep review rebase targets, namespaced checkpoint tags, resume-safe branch creation, collision prevention
-- **v1.3.0** — Per-split branching: each split gets its own branch (`<task>/split-N`), chained from the previous split for ordered review and merge
-- **v1.2.3** — Final polish: typo fix, scribe entry naming, deep review cap in README, design verifier skip logic, consistent RALPH wording
-- **v1.2.2** — Doc polish: aligned phase numbering, clarified build gate flow, unified dependency severity, consistent split limits, typo fixes
-- **v1.2.1** — Cleanup: removed per-split build gate remnant, unified rollback to checkpoint tags, cross-platform commands in Forge, plain-language convergence throughout, removed dev markers
-- **v1.2.0** — No PR creation (push-only), build gate moved post-execution, local deep review, architecture doc required, explicit agent dispatch, plain-language convergence checks
-- **v1.1.0** — Fixed all 10 issues from multi-model evaluation (infinite loop protection, structural convergence, cross-platform, safe cleanup, rollback/retry, and more)
-- **v1.0.0** — Initial release combining Crucible + Forge under one plugin
+Verify it's installed:
+```
+/skills
+# Should show: foundry:crucible, foundry:forge
+```
+
+---
+
+## Quick Start
+
+### Crucible — Plan a Task
+
+Just describe what you need. Crucible figures out the rest.
+
+```
+I have this work item: "TASK 12345: Standardize enum string conversion
+across billing policy code." Analyze and plan this task.
+```
+
+Crucible will:
+1. Ask you for any architecture docs or context (optional)
+2. Assess complexity — is this a quick fix or a big project?
+3. Dispatch 3 AI models to independently create a plan
+4. Have them cross-review each other until they agree
+5. Output a final `plan.md` (and `design-doc.md` if the task is large)
+
+### Forge — Execute the Plan
+
+Once you have a plan, hand it to Forge:
+
+```
+Forge this. Plan is at ./plan.md, architecture doc is at ./docs/architecture.md
+```
+
+Forge will:
+1. Read and validate the plan
+2. Ask you for the base branch and naming preference
+3. Write code file-by-file using dedicated code agents
+4. Verify every iteration against the plan (and design/architecture for large tasks)
+5. Commit, push, and run a final adversarial code review
+
+---
+
+## Example Prompts
+
+### Crucible Examples
+
+**From a work item (simplest):**
+```
+I got this work item — "TASK 67890: Add retry logic to the blob upload
+pipeline." I don't have much info, but analyze and plan this.
+```
+
+**With context:**
+```
+Plan this task: We need to migrate our authentication from cookie-based
+to JWT tokens across the API layer. Architecture doc is at ./docs/auth-architecture.md
+```
+
+**With an existing plan to validate:**
+```
+I already have a plan.md — can you validate it meets Forge's requirements
+and fix any gaps? Plan is at ./plan.md
+```
+
+**Refine a design doc:**
+```
+Design this task: implement a rate limiter for our public API endpoints.
+Here's the architecture doc: ./docs/api-architecture.md
+```
+
+### Forge Examples
+
+**Standard execution:**
+```
+Here's the task — plan is at ./output/plan.md, design doc is at
+./output/design-doc.md, and architecture is at ./docs/architecture.md
+```
+
+**Small task (no design doc):**
+```
+Forge this. Plan is at ./plan.md — it's a small task, no design doc needed.
+```
+
+**Resume an interrupted session:**
+```
+Resume
+```
+Forge detects `forge-state.md` from the previous session and picks up where it left off.
+
+---
+
+## The Two-Skill Workflow
+
+Here's what happens end-to-end when you use both skills together:
+
+```
+You: "Plan this task: [description]"
+                    │
+            ┌───────▼───────┐
+            │   CRUCIBLE     │
+            │                │
+            │  1. Intake     │  ← You provide task + optional docs
+            │  2. Complexity │  ← AI decides: small or large task?
+            │  3. Fleet      │  ← 3 models plan independently
+            │  4. Converge   │  ← Models cross-review until agreement
+            │  5. Output     │  ← plan.md + design-doc.md (if large)
+            └───────┬───────┘
+                    │
+                    ▼
+You: "Forge this. Plan is at ./plan.md"
+                    │
+            ┌───────▼───────┐
+            │    FORGE       │
+            │                │
+            │  1. Read plan  │  ← Validates all required fields
+            │  2. Confirm    │  ← You pick branch, naming, base
+            │  3. Code       │  ← Agent writes each file
+            │  4. Verify     │  ← Plan/design/arch verifiers check it
+            │  5. Iterate    │  ← Fix issues, re-verify (max 10 rounds)
+            │  6. Commit     │  ← Push per split
+            │  7. Build      │  ← Full build gate after all splits
+            │  8. Review     │  ← 3 adversarial reviewers attack the code
+            │  9. Done       │  ← Branch pushed, you create the PR
+            └───────────────┘
+```
+
+---
+
+## What Crucible Asks You
+
+During planning, Crucible will prompt you for:
+
+| Prompt | When | Your Options |
+|--------|------|-------------|
+| Task description | Always | Text, file path, URL, or work item ID |
+| Architecture doc | Always (optional) | File path or "none" |
+| Existing plan/design doc | Always (optional) | File path or "none" |
+| Output directory | Always | Path (defaults to current dir) |
+| Complexity confirmation | After assessment | Agree with AI recommendation or override |
+
+## What Forge Asks You
+
+During execution, Forge will prompt you for:
+
+| Prompt | When | Your Options |
+|--------|------|-------------|
+| Document locations | Start | Paths to plan.md, design-doc.md, architecture doc |
+| Base branch | Before execution | `main`, `master`, `develop`, `build/main/latest`, etc. |
+| Branch prefix | Before execution | `user/<alias>/<name>`, `feature/<name>`, custom |
+| Split relationship | Multi-split tasks | Chained (builds on previous) or independent |
+| Execution approval | After preview | "Yes" to proceed |
+
+---
+
+## Small vs Large Tasks
+
+Crucible automatically assesses whether your task is small or large and adjusts the workflow:
+
+| | Small Task | Large Task |
+|---|-----------|------------|
+| **Examples** | Bug fix, config change, simple feature | New API, multi-component refactor |
+| **Plan** | ✅ Generated | ✅ Generated |
+| **Design doc** | ⚡ Skipped | ✅ Generated |
+| **Architecture doc** | Not required | Required |
+| **Verifiers in Forge** | Plan only | Plan + design + architecture |
+| **Typical time** | Faster, less ceremony | Full ceremony |
+
+You always get to confirm or override the AI's recommendation.
+
+---
+
+## Tips for Best Results
+
+1. **Give Crucible context** — The more you provide (architecture docs, existing code patterns, constraints), the better the plan
+2. **Work item IDs work** — Just paste the work item ID or URL; Crucible fetches the details
+3. **Don't skip Crucible for big tasks** — Going straight to Forge with a hand-written plan works, but Crucible's 3-model convergence catches gaps you'd miss
+4. **Use Forge's resume** — If Copilot CLI crashes mid-execution, just say "resume" and it picks up where it left off
+5. **Branch naming** — Use your team's convention (e.g., `user/<alias>/<feature>/split-N`)
+6. **Review the plan before forging** — Crucible outputs `plan.md` — read it, tweak it if needed, then hand it to Forge
+
+---
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| "Missing ## Complexity section" | Your plan.md wasn't generated by Crucible. Add a `## Complexity` section with `Classification: small` or `Classification: large` |
+| Forge says "NOT READY" | Check the readiness report — usually a missing document or plan field |
+| Deep review step fails | Make sure the `deep-review` plugin is installed: `/plugin install deep-review@agency` |
+| Forge can't find my plan | Provide the full path: `plan is at C:\path\to\plan.md` |
+| Want to skip deep review | Not supported — it's a safety gate. But it's fast (usually 1-2 rounds) |
+| Resume shows stale state | Say "start fresh" when prompted — it archives the old state |
+
+---
+
+## Architecture & Internals
+
+For technical details — phase breakdowns, agent specs, RALPH loop mechanics, safety features, and version history — see [ARCHITECTURE.md](ARCHITECTURE.md).
+
+---
+
+**v1.4.3** · [Version History](ARCHITECTURE.md#version-history)
