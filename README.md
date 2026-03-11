@@ -56,10 +56,11 @@ across billing policy code." Analyze and plan this task.
 
 Crucible will:
 1. Ask you for any architecture docs or context (optional)
-2. Assess complexity — is this a quick fix or a big project?
-3. Dispatch 3 AI models to independently create a plan
-4. Have them cross-review each other until they agree
-5. Output a final `plan.md` (and `design-doc.md` if the task is large)
+2. Ask for execution config (base branch, branch prefix, split relationship)
+3. Assess complexity — is this a quick fix or a big project?
+4. Dispatch 3 AI models to independently create a plan
+5. Have them cross-review each other until they agree
+6. Output a final `plan.md` (and `design-doc.md` if the task is large)
 
 ### Forge — Execute the Plan
 
@@ -138,10 +139,11 @@ You: "Plan this task: [description]"
             │   CRUCIBLE     │
             │                │
             │  1. Intake     │  ← You provide task + optional docs
-            │  2. Complexity │  ← AI decides: small or large task?
-            │  3. Fleet      │  ← 3 models plan independently
-            │  4. Converge   │  ← Models cross-review until agreement
-            │  5. Output     │  ← plan.md + design-doc.md (if large)
+            │  2. Config     │  ← Base branch, naming, split relationship
+            │  3. Complexity │  ← AI decides: small or large task?
+            │  4. Fleet      │  ← 3 models plan independently
+            │  5. Converge   │  ← Models cross-review until agreement
+            │  6. Output     │  ← plan.md (with execution config) + design-doc.md (if large)
             └───────┬───────┘
                     │
                     ▼
@@ -151,8 +153,8 @@ You: "Forge this. Plan is at ./plan.md"
             │    FORGE       │
             │                │
             │  1. Read plan  │  ← Validates all required fields
-            │  2. Confirm    │  ← You pick branch, naming, base
-            │  3. Code       │  ← Agent writes each file
+            │  2. Confirm    │  ← Shows preview, you say "go"
+            │  3. Code       │  ← Agent writes each file (headless from here)
             │  4. Verify     │  ← Plan/design/arch verifiers check it
             │  5. Iterate    │  ← Fix issues, re-verify (max 10 rounds)
             │  6. Commit     │  ← Push per split
@@ -166,7 +168,7 @@ You: "Forge this. Plan is at ./plan.md"
 
 ## What Crucible Asks You
 
-During planning, Crucible will prompt you for:
+During planning, Crucible collects everything Forge needs so Forge can run headless:
 
 | Prompt | When | Your Options |
 |--------|------|-------------|
@@ -175,18 +177,24 @@ During planning, Crucible will prompt you for:
 | Existing plan/design doc | Always (optional) | File path or "none" |
 | Output directory | Always | Path (defaults to current dir) |
 | Complexity confirmation | After assessment | Agree with AI recommendation or override |
+| Base branch | Always | `main`, `master`, `develop`, `build/main/latest`, etc. |
+| Branch prefix | Always | `user/<alias>/<name>`, `feature/<name>`, custom |
+| Split relationship | Multi-split tasks | Chained (builds on previous) or independent |
+
+> **Everything goes into the plan.** Crucible writes your branch/split preferences into `plan.md` so Forge reads them automatically.
 
 ## What Forge Asks You
 
-During execution, Forge will prompt you for:
+Forge is designed to be **headless** — it reads everything from the plan and only prompts once:
 
-| Prompt | When | Your Options |
-|--------|------|-------------|
-| Document locations | Start | Paths to plan.md, design-doc.md, architecture doc |
-| Base branch | Before execution | `main`, `master`, `develop`, `build/main/latest`, etc. |
-| Branch prefix | Before execution | `user/<alias>/<name>`, `feature/<name>`, custom |
-| Split relationship | Multi-split tasks | Chained (builds on previous) or independent |
-| Execution approval | After preview | "Yes" to proceed |
+| Prompt | When | Purpose |
+|--------|------|---------|
+| Document locations | Start (Phase 1) | Paths to plan.md, design-doc.md, architecture doc |
+| "Shall I proceed?" | After readiness check (Phase 5) | Final go/no-go before execution |
+
+That's it. After you say "go", Forge runs to completion without interruption — writing code, verifying, committing, pushing, and reviewing autonomously.
+
+> **Fallback:** If your plan wasn't made by Crucible and is missing `## Execution Config`, Forge will prompt for base branch and prefix as a one-time fallback.
 
 ---
 
@@ -237,4 +245,4 @@ For technical details — phase breakdowns, agent specs, RALPH loop mechanics, s
 
 ---
 
-**v1.4.3** · [Version History](ARCHITECTURE.md#version-history)
+**v1.5.0** · [Version History](ARCHITECTURE.md#version-history)

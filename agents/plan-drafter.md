@@ -33,6 +33,11 @@ Architecture Doc: [skip | required]
 ## Branch
 `feature/[descriptive-kebab-case-branch-name]`
 
+## Execution Config
+Base Branch: [base branch name — e.g., main, master, develop, build/main/latest]
+Branch Prefix: [full prefix pattern — e.g., user/johndoe/add-auth, feature/add-auth, forge/add-auth]
+Split Relationship: [chained | independent]
+
 ## Overview
 [2-4 sentences: what this task does, the technical approach, and scope boundaries]
 
@@ -91,6 +96,13 @@ Architecture Doc: [skip | required]
 - Must be a valid git branch name in kebab-case
 - Must be descriptive of the task
 - Example: `feature/add-user-authentication`, `fix/memory-leak-in-cache`
+
+### Execution Config
+- The context packet includes execution config set by the user during Crucible intake
+- **You MUST include the `## Execution Config` section** in your plan.md output — Forge reads this to run headless (no prompts during execution)
+- Copy the values (`Base Branch`, `Branch Prefix`, `Split Relationship`) exactly from the context packet
+- `Branch Prefix` is the prefix before `/split-N` — Forge appends the split suffix automatically
+- `Split Relationship` must be either `chained` or `independent`
 
 ## Cross-Review Rules (Rounds 2+)
 

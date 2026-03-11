@@ -54,13 +54,35 @@ To refine a plan with Crucible, provide:
 5. Output directory  — where to write plan.md and design-doc.md (default: current directory)
 ```
 
+After user responds, ask for **execution configuration** — Forge reads these from the plan and runs headless:
+
+```
+Forge execution config (so Forge can run without prompting):
+
+6. Base branch       — which branch should Forge create splits from?
+                       (e.g., main, master, develop, build/main/latest)
+7. Branch prefix     — what naming convention for split branches?
+                       Common patterns:
+                         a. user/<alias>/<task-name>/split-N
+                         b. feature/<task-name>/split-N
+                         c. forge/<task-name>/split-N
+                         d. Custom prefix
+                       (default: forge/<task-name>/split-N)
+8. Split relationship — if the plan has multiple splits, are they chained
+                        (each builds on the previous) or independent?
+                        (default: chained)
+```
+
+**All 8 items must be collected before proceeding.** If the user doesn't provide execution config (#6-8), prompt for them explicitly — Forge will not ask again.
+
 After user responds:
 
 - If existing plan provided → enter **Validation Mode** (Phase 1.5)
 - If existing design doc provided but no plan → enter **Generation Mode** with design doc as context
 - If no design doc → proceed to **Complexity Assessment** below (do NOT ask about design doc yet)
 - Detect platform from `git remote -v` (ADO vs GitHub) for work item fetching
-- Record choices in memory
+- Record ALL choices in memory including execution config
+- Store execution config in `crucible-state.md` as `base-branch`, `branch-prefix`, `split-relationship`
 
 ### Complexity Assessment
 
@@ -129,6 +151,7 @@ Read the provided plan and check every Forge requirement:
 | 9 | Splits ordered correctly | Do later splits only depend on earlier ones? |
 | 10 | No contradictions between splits | Do splits reference consistent file paths and interfaces? |
 | 11 | Complexity section present | Is there a `## Complexity` section with `Classification: small` or `Classification: large`? If missing, assess the plan's scope and add the section — Forge requires it to determine which verifiers to run. |
+| 12 | Execution config present | Is there a `## Execution Config` section with `Base Branch`, `Branch Prefix`, and `Split Relationship`? If missing, add it from the user's intake answers — Forge requires it to run headless. |
 
 ### Design Doc Validation
 
@@ -278,6 +301,12 @@ Your job is to produce a Forge-compatible plan (and design doc if complexity is 
 Be specific — include exact file paths, concrete types, real method signatures.
 Do not be generic or hand-wavy.
 The plan.md MUST include a `## Complexity` section with `Classification: small` or `Classification: large` (see plan-drafter template for full format).
+The plan.md MUST include a `## Execution Config` section with the user's branch and split preferences — Forge reads this to run headless. Copy the values from the execution config below.
+
+## Execution Config
+Base Branch: [user's chosen base branch]
+Branch Prefix: [user's chosen prefix pattern]
+Split Relationship: [chained | independent]
 ```
 
 ---

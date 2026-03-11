@@ -189,6 +189,7 @@ Present a structured report using this exact format:
 - [BLOCKING]    Architecture doc not provided — REQUIRED for large tasks, cannot proceed
 - [BLOCKING]    Design doc not provided — REQUIRED for large tasks (full ceremony)
 - [MISSING]     No branch name in plan
+- [MISSING]     No execution config in plan — Forge will prompt for base branch, prefix, split relationship
 - [MISSING]     No file-level breakdown in plan — cannot safely spawn per-file agents
 - [INCOMPLETE]  Design doc missing error handling strategy
 - [BLOCKING]    No file dependencies specified — cannot safely order code agent execution. Offer to auto-derive from imports.
@@ -210,62 +211,41 @@ If **READY**:
 
 ---
 
-## Phase 5 — Final Confirmation
+## Phase 5 — Final Confirmation (Headless-Ready)
 
-Present a concise execution preview. Before showing the preview, collect three key decisions from the user:
+Forge reads all execution config from the plan — **do not prompt the user for branch, prefix, or split relationship.** These are set by Crucible during planning.
 
-**1. Base branch:** Ask the user which branch to create splits from:
+### Read Execution Config from Plan
 
+Extract from the plan's `## Execution Config` section:
+- `Base Branch` → store as `$BASE_BRANCH`
+- `Branch Prefix` → store as `$BRANCH_PREFIX`
+- `Split Relationship` → store as `$SPLIT_RELATIONSHIP` (chained or independent)
+
+**If `## Execution Config` is missing** (e.g., user-written plan without Crucible):
+- Log: `⚠️ No execution config in plan — prompting for required values.`
+- Fall back to prompting:
+  - Base branch (required)
+  - Branch prefix (default: `forge/<task-name>`)
+  - Split relationship (default: chained)
+- This is the ONLY scenario where Forge prompts for these values.
+
+**If split relationship is `independent`**: Log a warning and proceed with only the first split:
 ```
-What branch should I create the first split from?
-
-This is the base branch that split-1 will branch off of.
-Common choices: main, master, develop, build/main/latest
-
-Your base branch?
-```
-
-Store this as `$BASE_BRANCH` — used instead of auto-detection throughout.
-
-**2. Branch naming preference:** If the plan specifies a branch name, use it. If not (or the user wants to customize), ask:
-
-```
-Branch naming — what prefix should I use for split branches?
-
-Common patterns:
-  1. user/<alias>/<task-name>/split-N    (e.g., user/johndoe/my-feature/split-1)
-  2. feature/<task-name>/split-N          (e.g., feature/add-auth/split-1)
-  3. forge/<task-name>/split-N            (e.g., forge/add-auth/split-1)
-  4. Custom prefix
-
-Your preference? (or press Enter for option 3)
+⚠️ Independent splits detected — executing split 1 only.
+   Run Forge separately for each remaining split.
 ```
 
-**3. Split relationship:** If the plan has multiple splits, ask:
-
-```
-Are the splits in this task chained (each builds on the previous)?
-
-  1. Yes — chained (split-2 branches from split-1, split-3 from split-2, etc.)
-     Use this when all splits are part of the same feature/change.
-  2. No — they are independent/unrelated changes
-
-Your choice?
-```
-
-If the user chooses **independent**: Advise them to run Forge separately for each split — independent changes should not share a branch chain. Offer to proceed with just the first split, or let the user pick which split to execute.
-
-If the user chooses **chained**: Proceed with the normal per-split branching flow.
-
-Once all decisions are confirmed, show the full execution preview:
+Once all config is resolved (from plan or fallback), show the execution preview:
 
 ```
 ## Ready to Forge
 
 Base     : [base branch]
-Branch   : [confirmed branch prefix]/split-1..N
+Branch   : [branch prefix]/split-1..N
 Splits   : [N splits — list them with their file counts]
 Chaining : [chained / independent]
+Complexity: [small / large]
 Strategy : One code agent per file, parallel within dependency constraints
            Verifiers (plan every iteration; architecture + design at split completion [large tasks] or SKIPPED [small tasks])
            Build gate after all splits complete, before deep review
@@ -274,7 +254,7 @@ Strategy : One code agent per file, parallel within dependency constraints
 Shall I proceed?
 ```
 
-Wait for explicit user confirmation. Do not touch any file until confirmed.
+Wait for explicit user confirmation. Do not touch any file until confirmed. This is the **last prompt before fully headless execution** — after this, Forge runs to completion without interruption (unless a preflight check fails or hard cap is reached).
 
 ---
 
@@ -361,7 +341,7 @@ Branching: per-split (<task-branch>/split-1, split-2, ...)
 
 Each task split gets its own branch, chained from the previous split's branch. This keeps all splits under the same root task while allowing independent review per split.
 
-Use the branch prefix and base branch confirmed by the user in Phase 5. The split suffix `/split-N` is always appended automatically. Store `$BASE_BRANCH` from the user's Phase 5 answer.
+Use the branch prefix and base branch from the plan's `## Execution Config` section (read in Phase 5). The split suffix `/split-N` is always appended automatically. `$BASE_BRANCH` and `$BRANCH_PREFIX` come from the plan.
 
 **Branch naming convention:** `<task-branch>/split-N` (e.g., `user/johndoe/my-feature/split-1`, `feature/my-task/split-2`)
 
@@ -431,10 +411,10 @@ hard-cap-deep-review: 5
 status: running
 phase: execution
 complexity: <small|large>  ← read from plan.md's ## Complexity → Classification field
-task-branch: <task-branch>
-base-branch: <base-branch>
+task-branch: <branch-prefix from plan's ## Execution Config>
+base-branch: <base-branch from plan's ## Execution Config>
 current-branch: <task-branch>/split-1
-chained: <true|false>
+chained: <true|false from plan's ## Execution Config → Split Relationship>
 ---
 
 ## Dependency Graph
