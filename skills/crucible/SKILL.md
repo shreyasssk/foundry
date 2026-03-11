@@ -8,7 +8,9 @@ disable-model-invocation: true
 
 > **Named after the metallurgy concept:** raw materials are refined in a crucible before entering the forge.
 
-Crucible takes a raw task description, dispatches it to 3 AI models in parallel, cross-pollinates their outputs through adaptive convergence rounds, and produces Forge-compatible `plan.md` + `design-doc.md`.
+Crucible takes a raw task description, dispatches it to 3 AI models in parallel, cross-pollinates their outputs through adaptive convergence rounds, and produces Forge-compatible `plan.md` + optionally `design-doc.md`.
+
+**Not all tasks need a design doc.** Crucible assesses task complexity and recommends whether a design doc is needed. Small, straightforward tasks skip design doc generation entirely.
 
 ---
 
@@ -56,9 +58,53 @@ After user responds:
 
 - If existing plan provided → enter **Validation Mode** (Phase 1.5)
 - If existing design doc provided but no plan → enter **Generation Mode** with design doc as context
-- If no design doc → ask: "No design doc provided. Should I generate one alongside the plan?" (default: Yes)
+- If no design doc → proceed to **Complexity Assessment** below (do NOT ask about design doc yet)
 - Detect platform from `git remote -v` (ADO vs GitHub) for work item fetching
 - Record choices in memory
+
+### Complexity Assessment
+
+Before deciding on design doc generation, assess the task's complexity based on the task description and any provided context:
+
+**Indicators of a SMALL task** (design doc NOT needed):
+- Touches ≤ 5 files
+- Single split likely sufficient
+- Bug fix, config change, simple feature addition
+- No new interfaces, APIs, or data model changes
+- No cross-component or cross-service interaction
+- Clear, well-scoped change with obvious approach
+
+**Indicators of a LARGE task** (design doc recommended):
+- Touches > 5 files or multiple components
+- Multiple splits needed
+- New APIs, interfaces, services, or data models
+- Cross-component interactions or new integration points
+- Architectural decisions required
+- Multiple valid approaches exist
+- Error handling or security implications
+
+After assessment, present your recommendation to the user:
+
+```
+## Complexity Assessment
+
+Based on the task description, this appears to be a [SMALL / LARGE] task.
+
+[2-3 sentences explaining why — e.g., "This is a localized bug fix touching 2 files
+with no new interfaces or API changes."]
+
+Recommendation:
+  ☐ Skip design doc — proceed with plan only (faster, less overhead)
+  ☐ Generate design doc alongside plan (recommended for complex tasks)
+
+Your choice?
+```
+
+Record the decision. This sets the `complexity` field in the output plan:
+- **SMALL** → `complexity: small` in plan.md header, no design doc generated, Forge skips design doc and architecture doc requirements
+- **LARGE** → `complexity: large` in plan.md header, design doc generated, Forge requires full ceremony
+
+Store in `crucible-state.md` as `complexity: small|large` and `generate-design: true|false`.
 
 ---
 
@@ -213,20 +259,24 @@ Assemble the **context packet** — a single markdown document that all 3 models
 ## Task Description
 [full task text]
 
+## Complexity
+[small | large]
+
 ## Architecture Context
 [architecture doc content or "Not provided"]
 
 ## Existing Design Doc
-[design doc content or "Not provided — Crucible will generate"]
+[design doc content or "Not provided — Crucible will generate" or "Not needed — small task"]
 
 ## Codebase Structure
 [file tree summary, tech stack, key patterns observed]
 
 ## Instructions
 You are one of 3 models participating in a Crucible refinement process.
-Your job is to produce a Forge-compatible plan (and design doc if indicated).
+Your job is to produce a Forge-compatible plan (and design doc if complexity is "large").
 Be specific — include exact file paths, concrete types, real method signatures.
 Do not be generic or hand-wavy.
+The plan.md MUST include a `## Complexity` section with value: [small|large].
 ```
 
 ---
@@ -239,10 +289,12 @@ Dispatch 3 parallel sub-agents using the task tool:
 - **Agent 2**: model `gpt-5.1-codex-max`
 - **Agent 3**: model `gemini-3-pro-preview` (NOTE: use `mode="sync"` for Gemini — it fails on background dispatch)
 
-Each model dispatches TWO agents from the foundry plugin:
+Each model dispatches agents from the foundry plugin:
 
-1. **Plan Drafter** — `task(agent_type="foundry/plan-drafter", prompt=<context packet + round instructions>, model=<model>)`
-2. **Design Drafter** (if generating) — `task(agent_type="foundry/design-drafter", prompt=<context packet + round instructions>, model=<model>)`
+1. **Plan Drafter** — always: `task(agent_type="foundry/plan-drafter", prompt=<context packet + round instructions>, model=<model>)`
+2. **Design Drafter** — only if complexity is LARGE and design doc generation is needed: `task(agent_type="foundry/design-drafter", prompt=<context packet + round instructions>, model=<model>)`
+
+If complexity is SMALL, skip the design drafter entirely. Log: `Design drafter skipped — small task (no design doc needed).`
 
 The agent instructions in `agents/plan-drafter.md` and `agents/design-drafter.md` define the exact output templates and quality requirements. Do NOT duplicate those templates here — the agents are the single source of truth.
 
@@ -251,7 +303,7 @@ For each model (Opus, Codex, Gemini), dispatch both agents with the context pack
 - Round number (1 for initial)
 - Whether design doc generation is needed
 
-Collect outputs from all 6 agents (3 plan-drafters + 3 design-drafters).
+Collect outputs from all agents (3 plan-drafters + up to 3 design-drafters if complexity is large).
 
 Store each model's output in the output directory:
 
@@ -267,6 +319,7 @@ Task      : [summary]
 Round     : 1 / 10
 Status    : round-1-complete
 Models    : [opus, codex, gemini]
+Complexity: [small | large]
 Generate  : [plan-only | plan-and-design]
 Output Dir: [path]
 

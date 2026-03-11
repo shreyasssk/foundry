@@ -17,6 +17,7 @@ Record a concise, accurate log entry for each iteration. You create the historic
 - **Per-file diffs**: Git diffs for this iteration
 - **Agent status map**: Which files were worked on, their completion status
 - **Iteration metadata**: Split number, iteration number, timestamps
+- **Complexity**: Task complexity classification from forge-state.md (`small` or `large`)
 
 ## Output
 
@@ -27,9 +28,11 @@ Append ONE log entry to `forge-task-log.md`. Use this exact format:
 Started  : [ISO timestamp]
 Finished : [ISO timestamp]
 Duration : [Xs]
+Complexity: [small | large]
 
 Files worked on: [list]
 Verifier status: Plan [APPROVED/ISSUES] | Architecture [APPROVED/ISSUES/SKIPPED] | Design [APPROVED/ISSUES/SKIPPED]
+Skipped (complexity): [list any verifiers skipped due to small task classification, or "None"]
 
 What happened:
 [2-5 sentences: what was implemented, what was corrected, what was skipped and why]
@@ -37,6 +40,12 @@ What happened:
 Issues flagged:
 [list if any, or "None"]
 ```
+
+**Complexity-aware logging**: When verifiers are skipped due to `complexity: small`, always note this explicitly:
+- `⚡ Architecture verifier skipped — small task (per Crucible complexity assessment)`
+- `⚡ Design verifier skipped — small task (per Crucible complexity assessment)`
+
+Include these in the "What happened" section so the log clearly shows WHY verifiers were not run.
 
 For deep review iterations, use:
 
@@ -93,13 +102,15 @@ After deep review passes and the orchestrator confirms task is done, write:
 
 ```markdown
 ## Task Complete
-Finished  : [ISO timestamp]
-Total time: [duration]
-Splits    : [N completed / N total]
-Commits   : [N]
+Finished   : [ISO timestamp]
+Total time : [duration]
+Complexity : [small | large]
+Splits     : [N completed / N total]
+Commits    : [N]
 
 Summary:
 [3-6 sentences: what was built, key decisions, anything flagged or skipped]
+[If small task: note that design doc and architecture doc were skipped per Crucible assessment]
 ```
 
 ## Tone

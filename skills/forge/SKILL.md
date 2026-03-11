@@ -49,12 +49,22 @@ If no state found or user chose fresh start, ask for document locations in a sin
 To get started with Forge, please provide paths to the following.
 You can give a file path or a directory (I'll find the right files inside).
 
-1. Architecture doc   — REQUIRED (file or folder path)
-2. Design doc         — task-specific (file or folder path)
-3. Plan               — task-specific; often same directory as design doc
+1. Plan               — REQUIRED (file or folder path)
+2. Architecture doc   — required for large tasks (file or folder path)
+3. Design doc         — required for large tasks (file or folder path)
 4. Product spec       — optional (skip if not applicable)
 5. Task description   — brief summary or work item ID
 ```
+
+**Complexity-aware intake:** After reading the plan, check for a `## Complexity` section:
+- If `complexity: small` is found → this is a Crucible-assessed small task. **Do NOT prompt for design doc or architecture doc.** Display:
+  ```
+  ⚡ Detected complexity: SMALL (from Crucible plan)
+     — Skipping design doc requirement
+     — Skipping architecture doc requirement
+     Proceeding with plan-only execution.
+  ```
+- If `complexity: large` is found (or no complexity section exists) → treat as a large task requiring full ceremony (architecture doc required, design doc expected)
 
 Wait for the user's response. Do not proceed until they reply.
 
@@ -112,8 +122,9 @@ Extract and internalize the following from each document.
 
 ### Plan-Specific Validation (required for execution)
 
-- [ ] Architecture doc is provided
-  - If missing → `[BLOCKING]` Architecture doc is required. Provide one or ask Crucible to generate one.
+- [ ] Architecture doc is provided (LARGE tasks only — skip for small tasks)
+  - If missing AND complexity is large → `[BLOCKING]` Architecture doc is required. Provide one or ask Crucible to generate one.
+  - If missing AND complexity is small → not blocking, skip silently
 - [ ] Task splits are present and meaningfully scoped
   - If missing → `[MISSING]` warn, offer to create splits yourself or ask user to add them
 - [ ] Branch name is specified
@@ -151,10 +162,14 @@ Present a structured report using this exact format:
 ## Forge Readiness Report
 
 ### Documents
-- Architecture : [path] — REQUIRED
-- Design Doc   : [path or NOT PROVIDED]
-- Plan         : [path or NOT PROVIDED]
+- Plan         : [path] — REQUIRED
+- Architecture : [path or "SKIPPED — small task"] — required for large tasks
+- Design Doc   : [path or "SKIPPED — small task"] — required for large tasks
 - Product Spec : [path or NOT PROVIDED / NOT REQUIRED]
+
+### Complexity
+[small — plan-only execution | large — full ceremony]
+[If small: "Design doc and architecture doc skipped per Crucible complexity assessment"]
 
 ### Task Summary
 [2-4 sentences: what the task is, proposed approach, scope]
@@ -164,13 +179,15 @@ Present a structured report using this exact format:
 - [Specific strengths, e.g. "Plan has file-level breakdown with dependencies"]
 
 ### Gaps and Warnings
-- [BLOCKING]    Architecture doc not provided — REQUIRED, cannot proceed
+- [BLOCKING]    Architecture doc not provided — REQUIRED for large tasks, cannot proceed
 - [MISSING]     No branch name in plan
 - [MISSING]     No file-level breakdown in plan — cannot safely spawn per-file agents
 - [INCOMPLETE]  Design doc missing error handling strategy
 - [BLOCKING]    No file dependencies specified — cannot safely order code agent execution. Offer to auto-derive from imports.
 - [MISMATCH]    Plan references module X but design doc does not mention it
 - [NOTE]        Product spec marks feature Y as out of scope — confirm before implementing
+
+**For small tasks:** Architecture and design doc gaps are NOT BLOCKING. Do not report them as missing.
 
 ### Readiness
 READY / NOT READY — [one line reason]
@@ -309,13 +326,15 @@ Create the coordination directory in the project folder (same folder as plan/des
 ├── forge-state.md               ← orchestrator loop state
 ├── forge-coordination.md        ← consolidated verifier feedback
 ├── forge-verifier-plan.md       ← plan verifier output (isolated)
-├── forge-verifier-arch.md       ← architecture verifier output (isolated)
-├── forge-verifier-design.md     ← design verifier output (isolated)
+├── forge-verifier-arch.md       ← architecture verifier output (large tasks only)
+├── forge-verifier-design.md     ← design verifier output (large tasks only)
 ├── forge-task-log.md            ← scribe log
-├── forge-summary-arch.md        ← architecture summary for agents
-├── forge-summary-design.md      ← design summary for agents
+├── forge-summary-arch.md        ← architecture summary for agents (large tasks only)
+├── forge-summary-design.md      ← design summary for agents (large tasks only)
 └── forge-summary-plan.md        ← plan summary for agents
 ```
+
+For **small tasks**, skip creating `forge-verifier-arch.md`, `forge-verifier-design.md`, `forge-summary-arch.md`, and `forge-summary-design.md` — they are not needed.
 
 #### 4. Initialize Task Log
 
@@ -323,6 +342,7 @@ Create the coordination directory in the project folder (same folder as plan/des
 # Forge Task Log
 Task: [task description]
 Task Branch: [task-branch]
+Complexity: [small | large]
 Started: [ISO timestamp]
 Splits: [N]
 Branching: per-split (<task-branch>/split-1, split-2, ...)
@@ -402,6 +422,7 @@ deep-review-round: 0
 hard-cap-deep-review: 5
 status: running
 phase: execution
+complexity: <small|large>
 task-branch: <task-branch>
 base-branch: <base-branch>
 current-branch: <task-branch>/split-1
@@ -420,8 +441,8 @@ chained: <true|false>
 
 ## Verifier Status (last iteration)
 - Plan        : —
-- Architecture: —
-- Design      : —
+- Architecture: — [or "SKIPPED — small task"]
+- Design      : — [or "SKIPPED — small task"]
 
 ## Deep Review
 - Round       : 0
@@ -486,7 +507,7 @@ SPLIT START (put the clay on the wheel)
        task(agent_type="foundry/code-agent", prompt="
          File: <file-path>
          Split: <split-N description>
-         Summaries: [contents of forge-summary-arch.md, forge-summary-design.md, forge-summary-plan.md]
+         Summaries: [forge-summary-plan.md always; forge-summary-arch.md + forge-summary-design.md only if large task]
          Feedback: [latest section of forge-coordination.md, or 'First iteration — no prior feedback']
          Instructions: Implement only what is needed for this file in this split. Do not commit. Do not modify any other file.
        ")
@@ -511,9 +532,11 @@ SPLIT START (put the clay on the wheel)
 
        Each verifier writes to its OWN isolated file — never to the shared coordination file.
 
-       **Safety check**: If architecture doc is missing at this point, STOP and return to Phase 1.
+       **Complexity check**: Read `complexity` from forge-state.md.
 
-       - **Plan Verifier**→ runs EVERY iteration
+       **Safety check (large tasks only)**: If architecture doc is missing at this point AND complexity is large, STOP and return to Phase 1.
+
+       - **Plan Verifier**→ runs EVERY iteration (always, regardless of complexity)
          ```
          task(agent_type="foundry/plan-verifier", prompt="
            Plan doc: [full plan document]
@@ -524,7 +547,8 @@ SPLIT START (put the clay on the wheel)
          ")
          ```
 
-       - **Architecture Verifier** → runs only at SPLIT COMPLETION (all files done)
+       - **Architecture Verifier** → runs only at SPLIT COMPLETION (all files done), **LARGE tasks only**
+         If `complexity: small` in forge-state.md, skip entirely. Log: `⚡ Architecture verifier skipped — small task (per Crucible complexity assessment).`
          ```
          task(agent_type="foundry/architecture-verifier", prompt="
            Architecture doc: [full architecture document]
@@ -535,7 +559,8 @@ SPLIT START (put the clay on the wheel)
          ")
          ```
 
-       - **Design Verifier** → runs only at SPLIT COMPLETION (all files done)
+       - **Design Verifier** → runs only at SPLIT COMPLETION (all files done), **LARGE tasks only**
+         If `complexity: small` in forge-state.md, skip entirely. Log: `⚡ Design verifier skipped — small task (per Crucible complexity assessment).`
          If no design doc was provided (Phase 4 readiness shows 'NOT PROVIDED'), skip the design verifier. Log: 'Design verifier skipped — no design doc provided.'
          ```
          task(agent_type="foundry/design-verifier", prompt="
@@ -977,7 +1002,7 @@ Do not merge. Hand off to the user.
 - Always add `forge-*.md` to `.gitignore` at startup
 - Always flag conflicting feedback between deep review perspectives and ask user before resolving
 - Always cap deep review rounds at 5 — if not satisfied by then, pause and ask user
-- Architecture doc is required — if not provided, block execution and ask the user.
+- Architecture doc is required for LARGE tasks — if not provided, block execution and ask the user. For SMALL tasks (as classified by Crucible), skip architecture and design doc requirements entirely.
 - Build gate runs once after all splits complete, before deep review — not during the RALPH loop.
 - Deep review runs locally against the branch diff — no PR required.
 - Always ask the user for the base branch in Phase 5 — never auto-detect or hardcode main/master.

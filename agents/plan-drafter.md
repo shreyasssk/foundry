@@ -25,6 +25,11 @@ You MUST produce a plan following this EXACT template. Forge's parser depends on
 ```markdown
 # Plan: [Task Title]
 
+## Complexity
+Classification: [small | large]
+Design Doc: [skip | required]
+Architecture Doc: [skip | required]
+
 ## Branch
 `feature/[descriptive-kebab-case-branch-name]`
 
@@ -52,6 +57,13 @@ You MUST produce a plan following this EXACT template. Forge's parser depends on
 ```
 
 ## Quality Requirements
+
+### Complexity
+- The context packet includes a `## Complexity` field set by Crucible (or the user)
+- **You MUST include the `## Complexity` section** in your plan.md output — Forge reads this to decide which verifiers to run
+- Copy the complexity value (`small` or `large`) from the context packet
+- If complexity is `small`: set `Design Doc: skip` and `Architecture Doc: skip`
+- If complexity is `large`: set `Design Doc: required` and `Architecture Doc: required`
 
 ### Splits
 - Each split must be **independently scoped** — it should produce working, testable code on its own

@@ -6,15 +6,15 @@
 
 | Skill | Trigger | What It Does |
 |-------|---------|-------------|
-| **foundry:crucible** | `/crucible`, "plan this", "design this task" | Multi-model plan refinery — 3 AI models converge on a Forge-compatible plan.md + design-doc.md |
-| **foundry:forge** | `/forge`, "new task", "forge this" | Full task executor — takes plan + design → committed, pushed code via coordinated agents |
+| **foundry:crucible** | `/crucible`, "plan this", "design this task" | Multi-model plan refinery — 3 AI models converge on a Forge-compatible plan.md + optionally design-doc.md (complexity-aware) |
+| **foundry:forge** | `/forge`, "new task", "forge this" | Full task executor — takes plan → committed, pushed code via coordinated agents (adapts ceremony to task complexity) |
 
 ```
 Crucible (planning)  →  Forge (execution)
 ─────────────────       ─────────────────
-Task description        plan.md
-Architecture doc   →    design-doc.md
-Codebase context        architecture doc (required)
+Task description        plan.md (always)
+Architecture doc   →    design-doc.md (large tasks only)
+Codebase context        architecture doc (large tasks only)
                         ↓
                         Committed & pushed code
                         (user creates PR)
@@ -28,16 +28,17 @@ Takes a raw task and refines it through 3 AI models (Opus, Codex, Gemini) using 
 | Phase | Name | Description |
 |-------|------|-------------|
 | 1 | **Intake** | Resume check → collect task, docs, output dir |
-| 2 | **Context** | Read inputs, assemble shared context packet |
-| 3 | **Fleet Dispatch** | 3 models independently draft plan + design doc via `task(agent_type="foundry/plan-drafter")` and `task(agent_type="foundry/design-drafter")` |
+| 1.5 | **Complexity** | Assess task scope → classify small/large → recommend design doc decision |
+| 2 | **Context** | Read inputs, assemble shared context packet (includes complexity) |
+| 3 | **Fleet Dispatch** | 3 models draft plan (+ design doc if large) via `task(agent_type="foundry/plan-drafter")` and optionally `task(agent_type="foundry/design-drafter")` |
 | 4 | **Convergence** | RALPH loop — cross-review with plain-language convergence checks until all 3 agree (max 10 rounds) |
 | 5 | **Validate** | Merge, validate against Forge's required fields |
 | 6 | **Output** | Write final files, cleanup intermediates |
 | 7 | **Actions** | Hand off to Forge or done |
 
 ### Output
-- `plan.md` — Splits, file breakdowns, dependencies (DAG), acceptance criteria
-- `design-doc.md` — Problem, solution, types, APIs, error handling, alternatives
+- `plan.md` — Splits, file breakdowns, dependencies (DAG), acceptance criteria, **complexity classification**
+- `design-doc.md` — Problem, solution, types, APIs, error handling, alternatives **(large tasks only)**
 
 ## Forge — Full Task Executor
 
@@ -111,6 +112,7 @@ copilot plugin install shshivakumar_microsoft/foundry
 
 ## Version
 
+- **v1.4.0** — Task complexity assessment: Crucible classifies tasks as small/large, recommends design doc decision. Forge reads complexity flag — skips design doc, architecture doc, and their verifiers for small tasks. Plan template includes `## Complexity` section. Scribe logs complexity and skipped verifiers. Caution messages shown when ceremony is reduced.
 - **v1.3.6** — Doc/state polish: README reflects user-prompted base branch, forge-state template uses dynamic chained flag, legacy state resume asks for missing base-branch, Phase 6 guard prevents independent splits from chaining
 - **v1.3.5** — User-prompted base branch (no auto-detection), split relationship check (chained vs independent), base-branch persisted in forge-state.md, removed all DEFAULT_BRANCH auto-detection code
 - **v1.3.4** — Default branch fallback (origin/HEAD → main → master), BOM-free UTF-8 patches (utf8NoBOM + PS 5.1 fallback), .gitignore upgrade detection, archive + diff patch cleanup, branch preference moved to Phase 5, Crucible file discovery uses git ls-files with 500 limit
