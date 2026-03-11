@@ -146,6 +146,7 @@ The classification is stored in the plan's `## Complexity` section and read by F
 | `forge-verifier-*.md` | Individual verifier results | Deleted on completion |
 | `forge-diff-*.patch` | Per-file diffs for verifiers | Deleted on completion |
 | `forge-task-log.md` | Scribe's iteration-by-iteration log | ✅ Output |
+| `forge-summary.md` | Execution summary — branches, splits, merge order, next steps | ✅ Output |
 
 ---
 

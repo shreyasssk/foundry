@@ -915,50 +915,79 @@ Once all three deep review perspectives are satisfied:
    All perspectives satisfied. Branch ready for user to create PR.
    ```
 
-2. Report to user:
-   ```
-   All done.
+2. Write execution summary to `forge-summary.md`:
 
-   Branches : [list all split branches: <task-branch>/split-1, <task-branch>/split-2, ..., <task-branch>/split-N]
-   Commits  : [N total across all splits]
+   ```markdown
+   # Forge Execution Summary
+
+   ## Task
+   [task title from plan]
+
+   ## Complexity
+   [small | large]
+
+   ## Branches
+   | Split | Branch | Commits | Status |
+   |-------|--------|---------|--------|
+   | Split 1 — [name] | <task-branch>/split-1 | [N] | ✅ Complete |
+   | Split 2 — [name] | <task-branch>/split-2 | [N] | ✅ Complete |
+
+   ## Base Branch
+   [base branch name]
+
+   ## Merge Order
+   Merge in order: split-1 → split-2 → ... → split-N
+   Each split branch chains from the previous.
+
+   ## Deep Review
+   Rounds: [N]
+   Result: All perspectives satisfied
+
+   ## Build Gate
+   Result: [PASSED / FAILED + details]
+
+   ## Files Changed
+   [total files across all splits]
+
+   ## Task Log
+   See `forge-task-log.md` for iteration-by-iteration details.
+
+   ## Next Steps
+   1. Review the code on each split branch
+   2. Create PRs from each split branch (merge in order)
+   3. Delete split branches after merge
+   ```
+
+3. Report to user (brief — details are in the summary file):
+   ```
+   ✅ Forge complete.
+
+   Summary  : [path to forge-summary.md]
+   Branches : [list split branches]
    Log      : [path to forge-task-log.md]
 
-   Deep review passed after [N] round(s).
-   Create PRs from each split branch when you're ready for team review.
-   Each split branch chains from the previous — review and merge in order.
+   Create PRs from each split branch when ready — merge in order.
    ```
 
-3. Offer cleanup:
+4. Auto-cleanup (no prompts):
 
-   List only the forge working files that actually exist in the project folder. For small tasks, `forge-verifier-arch.md`, `forge-verifier-design.md`, `forge-summary-arch.md`, and `forge-summary-design.md` were never created — do not list them.
+   Delete all forge working files except outputs (`forge-summary.md` and `forge-task-log.md`):
 
    ```powershell
-   # PowerShell — discover existing forge files
-   Get-ChildItem -Filter "forge-*" | ForEach-Object { "- $($_.Name)" }
+   # PowerShell — clean up working files, keep outputs
+   Get-ChildItem -Filter "forge-*" |
+     Where-Object { $_.Name -notmatch '^forge-(summary|task-log)\.md$' } |
+     Remove-Item -Force
    ```
    ```bash
    # Bash
-   ls forge-* 2>/dev/null | sed 's/^/- /'
+   find . -maxdepth 1 -name 'forge-*' ! -name 'forge-summary.md' ! -name 'forge-task-log.md' -delete
    ```
 
-   ```
-   Forge created the following working files:
-   [dynamically list only files that exist]
+   Log what was cleaned: `Cleaned up [N] working files. Kept forge-summary.md and forge-task-log.md.`
 
-   These are in .gitignore and won't be committed.
-   Would you like me to delete them? (They're useful for debugging if you keep them.)
-   ```
+5. Auto-cleanup checkpoint tags (no prompts):
 
-4. Offer checkpoint tag cleanup:
-
-   ```
-   Forge created the following checkpoint tags:
-   [list all forge-checkpoint--*--split-* tags]
-
-   Would you like me to delete these tags? (They were used for rollback safety during execution.)
-   ```
-
-   If user confirms, delete tags locally and remotely:
    ```powershell
    # PowerShell
    git tag -l "forge-checkpoint--*" | ForEach-Object { git tag -d $_; git push origin --delete $_ 2>$null }
@@ -967,6 +996,8 @@ Once all three deep review perspectives are satisfied:
    # Bash
    git tag -l 'forge-checkpoint--*' | xargs -I{} sh -c 'git tag -d {} && git push origin --delete {} 2>/dev/null'
    ```
+
+   Log: `Cleaned up [N] checkpoint tags.`
 
 Do not merge. Hand off to the user.
 
@@ -997,7 +1028,7 @@ Do not merge. Hand off to the user.
 - Architecture doc is required for LARGE tasks — if not provided, block execution and ask the user. For SMALL tasks (as classified by Crucible), skip architecture and design doc requirements entirely.
 - Build gate runs once after all splits complete, before deep review — not during the RALPH loop.
 - Deep review runs locally against the branch diff — no PR required.
-- Always ask the user for the base branch in Phase 5 — never auto-detect or hardcode main/master.
+- Always read base branch from the plan's `## Execution Config` section — never auto-detect or hardcode main/master. If execution config is missing, fall back to prompting the user once.
 - Always ask the user if splits are chained or independent in Phase 5 — independent splits should be separate Forge executions.
 - Always dispatch agents explicitly using task(agent_type='foundry/<agent-name>') — never use vague instructions.
 - Each split gets its own branch (<task-branch>/split-N), chained from the previous split. Never put all splits on one branch.
