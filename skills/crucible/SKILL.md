@@ -128,6 +128,7 @@ Read the provided plan and check every Forge requirement:
 | 8 | Test strategy per split | Is there a concrete test approach? |
 | 9 | Splits ordered correctly | Do later splits only depend on earlier ones? |
 | 10 | No contradictions between splits | Do splits reference consistent file paths and interfaces? |
+| 11 | Complexity section present | Is there a `## Complexity` section with `Classification: small` or `Classification: large`? If missing, assess the plan's scope and add the section — Forge requires it to determine which verifiers to run. |
 
 ### Design Doc Validation
 
@@ -382,15 +383,24 @@ a REVISED version.
 
 Do NOT rely solely on models self-reporting "CONVERGED: yes". After collecting round N outputs, the orchestrator performs independent structural checks:
 
+**Plan convergence checks** (always apply):
 1. **Branch name** — exact match across all 3 models
 2. **Split count** — same number of splits
 3. **Split names** — all 3 models describe the same work in each split (same intent, same scope — wording differences are fine)
 4. **File lists per split** — all 3 models list the same files for each split (minor differences of 1-2 files are acceptable if the extra files are reasonable)
 5. **Dependency graph** — all 3 models agree on which files depend on which other files (same edges, same direction — ordering of independent files may differ)
 
+**Design doc convergence checks** (large tasks only — skip if complexity is small):
+6. **Solution approach** — all 3 models agree on the technical approach
+7. **Key types/interfaces** — all 3 models define the same types with compatible signatures
+8. **API contracts** — all 3 models agree on endpoints, methods, and status codes
+
+If complexity is small (plan-only mode), only checks 1-5 apply. Do not attempt to compare design doc outputs that don't exist.
+
 **Convergence criteria** (ALL must be true):
 - ≥ 2 of 3 models self-report CONVERGED: yes
-- Structural checks 1-5 pass
+- Plan structural checks 1-5 pass
+- Design doc structural checks 6-8 pass (large tasks only)
 - No model introduced NEW splits or removed existing ones from round N-1
 
 If models say converged but structural checks fail → override: NOT converged, continue looping.

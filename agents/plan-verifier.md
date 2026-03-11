@@ -26,6 +26,7 @@ Check that the code changes in this iteration faithfully implement what the plan
 3. **File alignment** — Were the correct files modified? Flag unexpected files or missing files per the plan's file breakdown.
 4. **Acceptance criteria** — Does the implementation satisfy the acceptance criteria defined in the plan for this split?
 5. **Dependency respect** — Were file dependencies handled in the correct order?
+6. **Plan integrity** — Does the plan contain a valid `## Complexity` section with `Classification: small` or `Classification: large`? If missing, flag as ISSUES FOUND — Forge depends on this to determine verifier strategy.
 
 ## What NOT to Check
 

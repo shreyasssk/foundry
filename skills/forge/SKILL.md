@@ -24,6 +24,7 @@ Before asking for documents, check if a `forge-state.md` already exists in the w
    - Are the split/iteration counters consistent?
    - Is the working tree clean? (`git status --porcelain`)
    - Does `base-branch` exist? If missing (legacy state from pre-v1.3.5), ask the user to provide it before resuming.
+   - Does `complexity` exist? If missing (legacy state from pre-v1.4.0), default to `large` and log: `⚠️ Pre-v1.4.0 state detected — assuming large task (full ceremony). Override with plan's ## Complexity section if present.`
 3. If valid, present to the user:
    ```
    Found existing Forge state:
@@ -57,14 +58,14 @@ You can give a file path or a directory (I'll find the right files inside).
 ```
 
 **Complexity-aware intake:** After reading the plan, check for a `## Complexity` section:
-- If `complexity: small` is found → this is a Crucible-assessed small task. **Do NOT prompt for design doc or architecture doc.** Display:
+- If `Classification: small` is found → this is a Crucible-assessed small task. **Do NOT prompt for design doc or architecture doc.** Display:
   ```
   ⚡ Detected complexity: SMALL (from Crucible plan)
      — Skipping design doc requirement
      — Skipping architecture doc requirement
      Proceeding with plan-only execution.
   ```
-- If `complexity: large` is found (or no complexity section exists) → treat as a large task requiring full ceremony (architecture doc required, design doc expected)
+- If `Classification: large` is found (or no complexity section exists) → treat as a large task requiring full ceremony (architecture doc required, design doc expected)
 
 Wait for the user's response. Do not proceed until they reply.
 
@@ -422,7 +423,7 @@ deep-review-round: 0
 hard-cap-deep-review: 5
 status: running
 phase: execution
-complexity: <small|large>
+complexity: <small|large>  ← read from plan.md's ## Complexity → Classification field
 task-branch: <task-branch>
 base-branch: <base-branch>
 current-branch: <task-branch>/split-1
@@ -548,7 +549,7 @@ SPLIT START (put the clay on the wheel)
          ```
 
        - **Architecture Verifier** → runs only at SPLIT COMPLETION (all files done), **LARGE tasks only**
-         If `complexity: small` in forge-state.md, skip entirely. Log: `⚡ Architecture verifier skipped — small task (per Crucible complexity assessment).`
+         If `complexity: small` in forge-state.md, skip entirely. Log: `⚡ Architecture verifier skipped — small task (per Crucible complexity assessment)`
          ```
          task(agent_type="foundry/architecture-verifier", prompt="
            Architecture doc: [full architecture document]
@@ -560,7 +561,7 @@ SPLIT START (put the clay on the wheel)
          ```
 
        - **Design Verifier** → runs only at SPLIT COMPLETION (all files done), **LARGE tasks only**
-         If `complexity: small` in forge-state.md, skip entirely. Log: `⚡ Design verifier skipped — small task (per Crucible complexity assessment).`
+         If `complexity: small` in forge-state.md, skip entirely. Log: `⚡ Design verifier skipped — small task (per Crucible complexity assessment)`
          If no design doc was provided (Phase 4 readiness shows 'NOT PROVIDED'), skip the design verifier. Log: 'Design verifier skipped — no design doc provided.'
          ```
          task(agent_type="foundry/design-verifier", prompt="
@@ -940,18 +941,20 @@ Once all three deep review perspectives are satisfied:
 
 3. Offer cleanup:
 
+   List only the forge working files that actually exist in the project folder. For small tasks, `forge-verifier-arch.md`, `forge-verifier-design.md`, `forge-summary-arch.md`, and `forge-summary-design.md` were never created — do not list them.
+
+   ```powershell
+   # PowerShell — discover existing forge files
+   Get-ChildItem -Filter "forge-*" | ForEach-Object { "- $($_.Name)" }
+   ```
+   ```bash
+   # Bash
+   ls forge-* 2>/dev/null | sed 's/^/- /'
+   ```
+
    ```
    Forge created the following working files:
-   - forge-state.md
-   - forge-coordination.md
-   - forge-verifier-plan.md
-   - forge-verifier-arch.md
-   - forge-verifier-design.md
-   - forge-task-log.md
-   - forge-summary-*.md
-   - forge-diff-*.patch
-   - forge-coordination-archive.md
-   - forge-deep-review-diff.patch
+   [dynamically list only files that exist]
 
    These are in .gitignore and won't be committed.
    Would you like me to delete them? (They're useful for debugging if you keep them.)

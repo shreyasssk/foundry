@@ -42,7 +42,7 @@ Takes a raw task and refines it through 3 AI models (Opus, Codex, Gemini) using 
 
 ## Forge — Full Task Executor
 
-Takes Crucible's output (or user-provided docs) and executes the plan through coordinated agents. Pushes committed code to the remote branch — PR creation is the user's responsibility. Architecture doc is required.
+Takes Crucible's output (or user-provided docs) and executes the plan through coordinated agents. Pushes committed code to the remote branch — PR creation is the user's responsibility. Architecture doc is required for large tasks (small tasks skip it).
 
 ### Phases
 | Phase | Name | Description |
@@ -100,7 +100,7 @@ All agent dispatches use explicit `task(agent_type="foundry/<name>")` calls.
 - **Resume support** — both skills track state and can pick up where they left off
 - **Post-execution build gate** (Forge) — full build after all splits complete, before deep review
 - **Git safety** (Forge) — fetch/rebase before push, specific file staging, user-specified base branch
-- **Architecture required** (Forge) — architecture doc is mandatory for execution
+- **Architecture required** (Forge) — architecture doc is mandatory for large tasks; small tasks skip it per Crucible's complexity assessment
 - **Local deep review** (Forge) — runs against branch diff, no PR needed
 - **Clean intermediates** — working files deleted, only outputs survive
 
@@ -112,6 +112,7 @@ copilot plugin install shshivakumar_microsoft/foundry
 
 ## Version
 
+- **v1.4.1** — Complexity flow fixes (round 11 review): format mismatch between plan template (`Classification: small`) and Forge detection fixed, code-agent spec updated for conditional summaries, Phase 7 cleanup made dynamic (only lists existing files), resume backward compat for pre-v1.4.0 states, Crucible validation checks for ## Complexity section, convergence logic handles plan-only mode, plan-verifier checks complexity section integrity, README qualified for small-task paths, log message punctuation standardized
 - **v1.4.0** — Task complexity assessment: Crucible classifies tasks as small/large, recommends design doc decision. Forge reads complexity flag — skips design doc, architecture doc, and their verifiers for small tasks. Plan template includes `## Complexity` section. Scribe logs complexity and skipped verifiers. Caution messages shown when ceremony is reduced.
 - **v1.3.6** — Doc/state polish: README reflects user-prompted base branch, forge-state template uses dynamic chained flag, legacy state resume asks for missing base-branch, Phase 6 guard prevents independent splits from chaining
 - **v1.3.5** — User-prompted base branch (no auto-detection), split relationship check (chained vs independent), base-branch persisted in forge-state.md, removed all DEFAULT_BRANCH auto-detection code

@@ -16,7 +16,7 @@ You are one of potentially many parallel code agents — each owns a single file
 ## Input You Receive
 
 - **Assigned file**: The exact file path you own
-- **Document summaries**: Condensed architecture, design, and plan summaries (not full docs)
+- **Document summaries**: Plan summary (always); architecture and design summaries (large tasks only — omitted for small tasks)
 - **Split description**: What this split aims to accomplish
 - **Verifier feedback**: Contents of `forge-coordination.md` — issues from prior iterations that you must address
 - **Dependency context**: If your file depends on other files, their current state
