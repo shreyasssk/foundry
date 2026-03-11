@@ -130,13 +130,15 @@ The classification is stored in the plan's `## Complexity` section and read by F
 
 ## Key Files Generated
 
-### Crucible
+### Crucible (working files at `~/.copilot/crucible/<task-slug>/`)
 | File | Purpose | Persists? |
 |------|---------|-----------|
 | `crucible-state.md` | Resume state (round, models, complexity) | Deleted on completion |
-| `crucible-draft-*.md` | Intermediate model outputs | Deleted on completion |
+| `crucible-round-*.md` | Intermediate model outputs | Deleted on completion |
 | `plan.md` | Final merged plan | ✅ Output |
 | `design-doc.md` | Final merged design doc (large only) | ✅ Output |
+
+> **Zero repo pollution:** All crucible working files and outputs live outside the repo.
 
 ### Forge (working files at `~/.copilot/forge/<task-slug>/`)
 | File | Purpose | Persists? |

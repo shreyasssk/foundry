@@ -18,9 +18,9 @@ Crucible takes a raw task description, dispatches it to 3 AI models in parallel,
 
 ### Resume Check
 
-Before asking for input, check if `crucible-state.md` exists in the working directory:
+Before asking for input, check if `crucible-state.md` exists in the Crucible working directory:
 
-1. Search for `crucible-state.md` in current dir and immediate subdirectories
+1. Search for `crucible-state.md` in `~/.copilot/crucible/*/` (scan all task directories)
 2. If found, read and validate:
    - Is the round counter consistent?
    - Are intermediate files still present?
@@ -51,29 +51,30 @@ To refine a plan with Crucible, provide:
 2. Architecture doc  — (optional) global/shared constraints
 3. Existing plan     — (optional) if you already have a plan.md, provide it for validation
 4. Design doc        — (optional) if not provided, Crucible generates one
-5. Output directory  — where to write plan.md and design-doc.md (default: current directory)
 ```
+
+All Crucible working files and outputs live **outside the repo** at `~/.copilot/crucible/<task-slug>/`. Nothing is written to the source directory.
 
 After user responds, ask for **execution configuration** — Forge reads these from the plan and runs headless:
 
 ```
 Forge execution config (so Forge can run without prompting):
 
-6. Base branch       — which branch should Forge create splits from?
+5. Base branch       — which branch should Forge create splits from?
                        (e.g., main, master, develop, build/main/latest)
-7. Branch prefix     — what naming convention for split branches?
+6. Branch prefix     — what naming convention for split branches?
                        Common patterns:
                          a. user/<alias>/<task-name>/split-N
                          b. feature/<task-name>/split-N
                          c. forge/<task-name>/split-N
                          d. Custom prefix
                        (default: forge/<task-name>/split-N)
-8. Split relationship — if the plan has multiple splits, are they chained
+7. Split relationship — if the plan has multiple splits, are they chained
                         (each builds on the previous) or independent?
                         (default: chained)
 ```
 
-**All 8 items must be collected before proceeding.** If the user doesn't provide execution config (#6-8), prompt for them explicitly — Forge will not ask again.
+**All 7 items must be collected before proceeding.** If the user doesn't provide execution config (#5-7), prompt for them explicitly — Forge will not ask again.
 
 After user responds:
 
@@ -256,6 +257,27 @@ If all checks pass:
 
 ## Phase 2 — Context Gathering
 
+### Crucible Working Directory
+
+All Crucible working files and outputs live **outside the repo**. Derive a slug from the task name and create:
+
+```powershell
+# PowerShell
+$slug = ($taskName -replace '[^a-zA-Z0-9_-]', '-' -replace '-+', '-').ToLower().Trim('-')
+$CRUCIBLE_DIR = Join-Path $HOME ".copilot" "crucible" $slug
+New-Item -ItemType Directory -Path $CRUCIBLE_DIR -Force | Out-Null
+```
+```bash
+# Bash
+slug=$(echo "$taskName" | tr -cd 'a-zA-Z0-9_-' | tr '[:upper:]' '[:lower:]')
+CRUCIBLE_DIR="$HOME/.copilot/crucible/$slug"
+mkdir -p "$CRUCIBLE_DIR"
+```
+
+Store `$CRUCIBLE_DIR` in memory. All `crucible-*` files, `plan.md`, and `design-doc.md` go here, NOT in the repo.
+
+### Read Inputs
+
 For each input provided:
 
 - If file path → read directly
@@ -335,13 +357,13 @@ For each model (Opus, Codex, Gemini), dispatch both agents with the context pack
 
 Collect outputs from all agents (3 plan-drafters + up to 3 design-drafters if complexity is large).
 
-Store each model's output in the output directory:
+Store each model's output in `$CRUCIBLE_DIR`:
 
 - `crucible-round-1-opus.md`
 - `crucible-round-1-codex.md`
 - `crucible-round-1-gemini.md`
 
-Write initial `crucible-state.md`:
+Write initial `crucible-state.md` to `$CRUCIBLE_DIR`:
 
 ```markdown
 # Crucible State
@@ -351,7 +373,6 @@ Status    : round-1-complete
 Models    : [opus, codex, gemini]
 Complexity: [small | large]
 Generate  : [plan-only | plan-and-design]
-Output Dir: [path]
 
 ## Round History
 | Round | Opus | Codex | Gemini | Converged |
@@ -508,17 +529,17 @@ Skip cross-check if complexity is small (no design doc to cross-check against).
 
 ## Phase 6 — Output & Cleanup
 
-Write final files to the output directory:
+Write final files to `$CRUCIBLE_DIR`:
 
 ```
-<output-dir>/
+~/.copilot/crucible/<task-slug>/
   plan.md               ← always
   design-doc.md         ← only if complexity is large and design doc was generated
 ```
 
 ### Safe Cleanup (two-phase)
 
-1. **Write final files first** — write `plan.md` (always) and `design-doc.md` (large tasks only) to the output directory
+1. **Write final files first** — write `plan.md` (always) and `design-doc.md` (large tasks only) to `$CRUCIBLE_DIR`
 2. **Verify outputs exist** — confirm `plan.md` exists and is non-empty. For large tasks, also confirm `design-doc.md` exists and is non-empty.
 3. **THEN delete intermediates** — only after verification:
    - `crucible-round-*.md` (all round outputs)
@@ -528,7 +549,7 @@ Write final files to the output directory:
    ⚠️ Output verification failed. Intermediate files preserved for recovery.
    ```
 
-**Rule 8 gate**: Do not delete ANY files until the user has chosen an option (Hand off / Push / Done).
+**Rule 8 gate**: Do not delete ANY files until the user has chosen an option (Hand off / Done).
 
 Present completion summary:
 
@@ -543,11 +564,12 @@ Present completion summary:
 ║ Output:                              ║
 ║   → plan.md       [X splits, Y files]║
 ║   → design-doc.md [generated/skipped]║
+║                                      ║
+║ Location: $CRUCIBLE_DIR              ║
 ╠══════════════════════════════════════╣
 ║ Options:                             ║
 ║ 1. Hand off to Forge (/forge)        ║
-║ 2. Push to GitHub repo               ║
-║ 3. Done — review manually            ║
+║ 2. Done — review manually            ║
 ╚══════════════════════════════════════╝
 ```
 
@@ -557,19 +579,13 @@ Present completion summary:
 
 ### Option 1: Hand off to Forge
 
-- Tell the user to run `/forge` and point it at the output directory
+- Tell the user to run `/forge` and point it at `$CRUCIBLE_DIR/plan.md`
 - Forge will pick up `plan.md` automatically (and `design-doc.md` if present for large tasks)
+- Example: `Forge this. Plan is at ~/.copilot/crucible/<task-slug>/plan.md`
 
-### Option 2: Push to GitHub
+### Option 2: Done
 
-- Check `gh auth status` — if not logged in, guide through `gh auth login`
-- Ask: "Create new repo or push to existing?"
-  - New: `gh repo create <name> --private --source=. --push`
-  - Existing: `git init && git add plan.md design-doc.md && git commit && git remote add && git push` (omit `design-doc.md` for small tasks)
-
-### Option 3: Done
-
-- Confirm files are written and exit
+- Confirm files are written to `$CRUCIBLE_DIR` and exit
 
 ---
 
@@ -580,8 +596,9 @@ Present completion summary:
 3. **Identical context packets** — all 3 models must receive byte-identical input each round
 4. **Forge compatibility is non-negotiable** — `plan.md` and `design-doc.md` MUST pass Forge's Phase 3 parser
 5. **Platform awareness** — detect ADO vs GitHub from git remote, use appropriate MCP tools
-6. **Clean up intermediates** — only `plan.md` (and `design-doc.md` for large tasks) survive in the output directory
+6. **Clean up intermediates** — only `plan.md` (and `design-doc.md` for large tasks) survive in `$CRUCIBLE_DIR`
 7. **Gemini sync mode** — always dispatch Gemini with `mode="sync"`, never background
 8. **User approval before cleanup** — don't delete intermediate files until the user has chosen an option in Phase 6
-9. **State persistence** — write `crucible-state.md` after every round so the process can resume
+9. **State persistence** — write `crucible-state.md` to `$CRUCIBLE_DIR` after every round so the process can resume
 10. **Token cost awareness** — in rounds 2+, only pass the PREVIOUS round's outputs (not all historical rounds) to keep context manageable
+11. **Zero repo pollution** — never write any Crucible files to the source repo. Only Forge writes code changes to the repo.
