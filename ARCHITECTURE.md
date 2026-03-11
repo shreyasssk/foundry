@@ -138,15 +138,18 @@ The classification is stored in the plan's `## Complexity` section and read by F
 | `plan.md` | Final merged plan | ✅ Output |
 | `design-doc.md` | Final merged design doc (large only) | ✅ Output |
 
-### Forge
+### Forge (working files at `~/.copilot/forge/<task-slug>/`)
 | File | Purpose | Persists? |
 |------|---------|-----------|
 | `forge-state.md` | Resume state (split, iteration, branch, complexity) | Deleted on completion |
 | `forge-coordination.md` | Consolidated verifier feedback | Deleted on completion |
 | `forge-verifier-*.md` | Individual verifier results | Deleted on completion |
 | `forge-diff-*.patch` | Per-file diffs for verifiers | Deleted on completion |
+| `forge-summary-*.md` | Document summaries for code agents | Deleted on completion |
 | `forge-task-log.md` | Scribe's iteration-by-iteration log | ✅ Output |
 | `forge-summary.md` | Execution summary — branches, splits, merge order, next steps | ✅ Output |
+
+> **Zero repo pollution:** All forge working files live outside the repo. No `.gitignore` entries needed.
 
 ---
 

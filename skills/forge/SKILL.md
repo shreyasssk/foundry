@@ -16,9 +16,9 @@ Forge is a full task lifecycle skill. It takes a task from raw documents to fini
 
 ### Resume Check
 
-Before asking for documents, check if a `forge-state.md` already exists in the working directory or recent project folders:
+Before asking for documents, check if a `forge-state.md` already exists in the Forge working directory:
 
-1. Search for `forge-state.md` in the current directory and immediate subdirectories
+1. Search for `forge-state.md` in `~/.copilot/forge/*/` (scan all task directories)
 2. If found, read it and validate:
    - Does the branch still exist? (`git branch --list <branch>`)
    - Are the split/iteration counters consistent?
@@ -279,44 +279,40 @@ git ls-remote --exit-code origin
 
 If any preflight check fails, do NOT proceed. Report the failure and wait for the user.
 
-#### 2. Forge File Hygiene
+#### 2. Forge Working Directory
 
-Ensure forge artifacts don't pollute version control. Check for BOTH patterns (`.md` and `.patch`) — an existing `.gitignore` may have an older forge entry that only covers `.md`:
+All Forge working files live **outside the repo** — zero repo pollution. No `.gitignore` changes needed.
 
-**Windows (PowerShell):**
+Derive a slug from the task branch name and create the working directory:
+
 ```powershell
-$gitignore = if (Test-Path .gitignore) { Get-Content .gitignore -Raw } else { '' }
-$needsMd = $gitignore -notmatch 'forge-\*\.md'
-$needsPatch = $gitignore -notmatch 'forge-\*\.patch'
-if ($needsMd -or $needsPatch) {
-    $additions = "`n# Forge orchestration artifacts"
-    if ($needsMd) { $additions += "`nforge-*.md" }
-    if ($needsPatch) { $additions += "`nforge-*.patch" }
-    Add-Content -Path .gitignore -Value $additions
-}
+# PowerShell
+$slug = ($BRANCH_PREFIX -replace '[/\\]', '-' -replace '[^a-zA-Z0-9_-]', '').ToLower()
+$FORGE_DIR = Join-Path $HOME ".copilot" "forge" $slug
+New-Item -ItemType Directory -Path $FORGE_DIR -Force | Out-Null
 ```
-
-**Unix (bash):**
 ```bash
-touch .gitignore
-grep -q 'forge-\*\.md' .gitignore || echo -e '\n# Forge orchestration artifacts\nforge-*.md' >> .gitignore
-grep -q 'forge-\*\.patch' .gitignore || echo 'forge-*.patch' >> .gitignore
+# Bash
+slug=$(echo "$BRANCH_PREFIX" | tr '/\\' '--' | tr -cd 'a-zA-Z0-9_-' | tr '[:upper:]' '[:lower:]')
+FORGE_DIR="$HOME/.copilot/forge/$slug"
+mkdir -p "$FORGE_DIR"
 ```
 
-If `.gitignore` doesn't exist, create it with the forge pattern. If modifying `.gitignore`, stage and commit it immediately with message: `chore: add forge artifacts to .gitignore`.
+Store `$FORGE_DIR` in memory. All `forge-*` files go here, NOT in the repo.
 
 #### 3. Create Coordination Files
 
-Create the coordination directory in the project folder (same folder as plan/design doc):
+Create files in `$FORGE_DIR`:
 
 ```
-<project-folder>/
+~/.copilot/forge/<task-slug>/
 ├── forge-state.md               ← orchestrator loop state
 ├── forge-coordination.md        ← consolidated verifier feedback
 ├── forge-verifier-plan.md       ← plan verifier output (isolated)
 ├── forge-verifier-arch.md       ← architecture verifier output (large tasks only)
 ├── forge-verifier-design.md     ← design verifier output (large tasks only)
-├── forge-task-log.md            ← scribe log
+├── forge-task-log.md            ← scribe log (output — survives cleanup)
+├── forge-summary.md             ← execution summary (output — survives cleanup)
 ├── forge-summary-arch.md        ← architecture summary for agents (large tasks only)
 ├── forge-summary-design.md      ← design summary for agents (large tasks only)
 └── forge-summary-plan.md        ← plan summary for agents
@@ -950,7 +946,10 @@ Once all three deep review perspectives are satisfied:
    [total files across all splits]
 
    ## Task Log
-   See `forge-task-log.md` for iteration-by-iteration details.
+   See `forge-task-log.md` in the Forge working directory for iteration-by-iteration details.
+
+   ## Working Directory
+   [full $FORGE_DIR path]
 
    ## Next Steps
    1. Review the code on each split branch
@@ -962,29 +961,29 @@ Once all three deep review perspectives are satisfied:
    ```
    ✅ Forge complete.
 
-   Summary  : [path to forge-summary.md]
+   Summary  : [$FORGE_DIR/forge-summary.md]
    Branches : [list split branches]
-   Log      : [path to forge-task-log.md]
+   Log      : [$FORGE_DIR/forge-task-log.md]
 
    Create PRs from each split branch when ready — merge in order.
    ```
 
 4. Auto-cleanup (no prompts):
 
-   Delete all forge working files except outputs (`forge-summary.md` and `forge-task-log.md`):
+   Delete all forge working files in `$FORGE_DIR` except outputs (`forge-summary.md` and `forge-task-log.md`):
 
    ```powershell
    # PowerShell — clean up working files, keep outputs
-   Get-ChildItem -Filter "forge-*" |
+   Get-ChildItem -Path $FORGE_DIR -Filter "forge-*" |
      Where-Object { $_.Name -notmatch '^forge-(summary|task-log)\.md$' } |
      Remove-Item -Force
    ```
    ```bash
    # Bash
-   find . -maxdepth 1 -name 'forge-*' ! -name 'forge-summary.md' ! -name 'forge-task-log.md' -delete
+   find "$FORGE_DIR" -maxdepth 1 -name 'forge-*' ! -name 'forge-summary.md' ! -name 'forge-task-log.md' -delete
    ```
 
-   Log what was cleaned: `Cleaned up [N] working files. Kept forge-summary.md and forge-task-log.md.`
+   Log what was cleaned: `Cleaned up [N] working files in $FORGE_DIR. Kept forge-summary.md and forge-task-log.md.`
 
 5. Auto-cleanup checkpoint tags (no prompts):
 
@@ -1022,7 +1021,7 @@ Do not merge. Hand off to the user.
 - Each verifier writes to its own file — never have multiple verifiers write to the same file
 - Pass document summaries to code agents — never send full documents to every agent
 - Follow the host environment's commit trailer policy — never impose or ban specific trailers
-- Always add `forge-*.md` to `.gitignore` at startup
+- All forge working files live in `$FORGE_DIR` (~/.copilot/forge/<task-slug>/) — never in the repo
 - Always flag conflicting feedback between deep review perspectives and ask user before resolving
 - Always cap deep review rounds at 5 — if not satisfied by then, pause and ask user
 - Architecture doc is required for LARGE tasks — if not provided, block execution and ask the user. For SMALL tasks (as classified by Crucible), skip architecture and design doc requirements entirely.
