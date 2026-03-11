@@ -277,7 +277,7 @@ You are one of 3 models participating in a Crucible refinement process.
 Your job is to produce a Forge-compatible plan (and design doc if complexity is "large").
 Be specific — include exact file paths, concrete types, real method signatures.
 Do not be generic or hand-wavy.
-The plan.md MUST include a `## Complexity` section with value: [small|large].
+The plan.md MUST include a `## Complexity` section with `Classification: small` or `Classification: large` (see plan-drafter template for full format).
 ```
 
 ---

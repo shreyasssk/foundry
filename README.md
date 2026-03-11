@@ -27,8 +27,8 @@ Takes a raw task and refines it through 3 AI models (Opus, Codex, Gemini) using 
 ### Phases
 | Phase | Name | Description |
 |-------|------|-------------|
-| 1 | **Intake** | Resume check → collect task, docs, output dir |
-| 1.5 | **Complexity** | Assess task scope → classify small/large → recommend design doc decision |
+| 1 | **Intake** | Resume check → collect task, docs, output dir → assess complexity (small/large) |
+| 1.5 | **Validation** | If existing plan/design doc provided, validate against Forge requirements before refining |
 | 2 | **Context** | Read inputs, assemble shared context packet (includes complexity) |
 | 3 | **Fleet Dispatch** | 3 models draft plan (+ design doc if large) via `task(agent_type="foundry/plan-drafter")` and optionally `task(agent_type="foundry/design-drafter")` |
 | 4 | **Convergence** | RALPH loop — cross-review with plain-language convergence checks until all 3 agree (max 10 rounds) |
@@ -48,7 +48,7 @@ Takes Crucible's output (or user-provided docs) and executes the plan through co
 | Phase | Name | Description |
 |-------|------|-------------|
 | 1 | **Gather** | Resume check → collect document locations |
-| 2 | **Locate** | Find and read all documents (architecture doc required) |
+| 2 | **Locate** | Find and read all documents (architecture doc required for large tasks) |
 | 3 | **Analyze** | Extract requirements, validate plan, generate summaries |
 | 4 | **Readiness** | Structured report of gaps and warnings |
 | 5 | **Confirm** | Final execution preview with user approval |
@@ -112,6 +112,7 @@ copilot plugin install shshivakumar_microsoft/foundry
 
 ## Version
 
+- **v1.4.3** — Round 13 doc fixes: README Phase 1.5 aligned with SKILL.md (Phase 1 includes complexity, 1.5 = Validation), Phase 5 preview now complexity-aware for verifier text, scribe dispatch includes complexity field, deep-review fix loop verifier scope clarified, "two decisions" → "three", README Phase 2 arch doc qualified for large tasks, coordination file template covers small-task skip, Crucible context packet complexity instruction references plan-drafter template
 - **v1.4.2** — Round 12 fixes: Forge readiness now blocks on missing ## Complexity section and missing design doc for large tasks; Crucible Phase 5-6 fully complexity-aware (validation/cross-check/output/cleanup/hand-off all conditional on small vs large); Phase 6 design verifier skip path tightened for large tasks
 - **v1.4.1** — Complexity flow fixes (round 11 review): format mismatch between plan template (`Classification: small`) and Forge detection fixed, code-agent spec updated for conditional summaries, Phase 7 cleanup made dynamic (only lists existing files), resume backward compat for pre-v1.4.0 states, Crucible validation checks for ## Complexity section, convergence logic handles plan-only mode, plan-verifier checks complexity section integrity, README qualified for small-task paths, log message punctuation standardized
 - **v1.4.0** — Task complexity assessment: Crucible classifies tasks as small/large, recommends design doc decision. Forge reads complexity flag — skips design doc, architecture doc, and their verifiers for small tasks. Plan template includes `## Complexity` section. Scribe logs complexity and skipped verifiers. Caution messages shown when ceremony is reduced.

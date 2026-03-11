@@ -212,7 +212,7 @@ If **READY**:
 
 ## Phase 5 — Final Confirmation
 
-Present a concise execution preview. Before showing the preview, collect two key decisions from the user:
+Present a concise execution preview. Before showing the preview, collect three key decisions from the user:
 
 **1. Base branch:** Ask the user which branch to create splits from:
 
@@ -267,7 +267,7 @@ Branch   : [confirmed branch prefix]/split-1..N
 Splits   : [N splits — list them with their file counts]
 Chaining : [chained / independent]
 Strategy : One code agent per file, parallel within dependency constraints
-           Verifiers (plan every iteration; architecture + design at split completion)
+           Verifiers (plan every iteration; architecture + design at split completion [large tasks] or SKIPPED [small tasks])
            Build gate after all splits complete, before deep review
            Scribe maintains task log at [project folder path]
 
@@ -623,10 +623,10 @@ SPLIT START (put the clay on the wheel)
        [copied from forge-verifier-plan.md]
 
        #### Architecture Verifier
-       [copied from forge-verifier-arch.md, or "SKIPPED — runs at split completion"]
+       [copied from forge-verifier-arch.md, or "SKIPPED — runs at split completion", or "SKIPPED — small task (per Crucible complexity assessment)"]
 
        #### Design Verifier
-       [copied from forge-verifier-design.md, or "SKIPPED — runs at split completion"]
+       [copied from forge-verifier-design.md, or "SKIPPED — runs at split completion", or "SKIPPED — small task (per Crucible complexity assessment)"]
 
        ### Files Status
        [current status of each file]
@@ -658,6 +658,7 @@ SPLIT START (put the clay on the wheel)
          Coordination file: [contents of forge-coordination.md]
          Per-file diffs: [diffs from this iteration]
          Agent status: [current agent status map]
+         Complexity: [from forge-state.md — small or large]
          Record: iteration number, files changed, verifier verdicts, decision made
          Output: append one log entry to forge-task-log.md
        ")
@@ -890,7 +891,7 @@ For each round of deep review feedback:
    - Treat each grouped concern as a mini-split
    - One code agent per file affected
    - Dependency-aware, parallel where possible
-   - Plan Verifier checks that fixes align with the original plan
+   - Verifiers run per Phase 6 rules (plan always; architecture + design at mini-split completion for large tasks; skipped for small tasks)
    - Scribe logs each iteration under `## Deep Review Round [N] — Iteration [I]`
 
 3. Commit and push each fix:
