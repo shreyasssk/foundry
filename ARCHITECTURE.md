@@ -130,7 +130,11 @@ The classification is stored in the plan's `## Complexity` section and read by F
 
 ## Key Files Generated
 
-### Crucible (working files at `~/.copilot/crucible/<task-slug>/`)
+### Shared Working Directory (`~/.copilot/foundry/<task-slug>/`)
+
+Both Crucible and Forge share one directory per task. Crucible creates it first; Forge reuses it.
+
+**Crucible files:**
 | File | Purpose | Persists? |
 |------|---------|-----------|
 | `crucible-state.md` | Resume state (round, models, complexity) | Deleted on completion |
@@ -138,9 +142,7 @@ The classification is stored in the plan's `## Complexity` section and read by F
 | `plan.md` | Final merged plan | ✅ Output |
 | `design-doc.md` | Final merged design doc (large only) | ✅ Output |
 
-> **Zero repo pollution:** All crucible working files and outputs live outside the repo.
-
-### Forge (working files at `~/.copilot/forge/<task-slug>/`)
+**Forge files (same directory):**
 | File | Purpose | Persists? |
 |------|---------|-----------|
 | `forge-state.md` | Resume state (split, iteration, branch, complexity) | Deleted on completion |
@@ -151,7 +153,7 @@ The classification is stored in the plan's `## Complexity` section and read by F
 | `forge-task-log.md` | Scribe's iteration-by-iteration log | ✅ Output |
 | `forge-summary.md` | Execution summary — branches, splits, merge order, next steps | ✅ Output |
 
-> **Zero repo pollution:** All forge working files live outside the repo. No `.gitignore` entries needed.
+> **Zero repo pollution:** All Foundry files live outside the repo. Only code changes touch the source directory.
 
 ---
 

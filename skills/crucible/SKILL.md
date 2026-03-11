@@ -20,7 +20,7 @@ Crucible takes a raw task description, dispatches it to 3 AI models in parallel,
 
 Before asking for input, check if `crucible-state.md` exists in the Crucible working directory:
 
-1. Search for `crucible-state.md` in `~/.copilot/crucible/*/` (scan all task directories)
+1. Search for `crucible-state.md` in `~/.copilot/foundry/*/` (scan all task directories)
 2. If found, read and validate:
    - Is the round counter consistent?
    - Are intermediate files still present?
@@ -53,7 +53,7 @@ To refine a plan with Crucible, provide:
 4. Design doc        — (optional) if not provided, Crucible generates one
 ```
 
-All Crucible working files and outputs live **outside the repo** at `~/.copilot/crucible/<task-slug>/`. Nothing is written to the source directory.
+All Foundry working files and outputs live **outside the repo** at `~/.copilot/foundry/<task-slug>/`. Nothing is written to the source directory. Forge reuses the same directory.
 
 After user responds, ask for **execution configuration** — Forge reads these from the plan and runs headless:
 
@@ -257,24 +257,24 @@ If all checks pass:
 
 ## Phase 2 — Context Gathering
 
-### Crucible Working Directory
+### Foundry Working Directory
 
-All Crucible working files and outputs live **outside the repo**. Derive a slug from the task name and create:
+All Foundry files (Crucible and Forge) live **outside the repo** in a shared directory per task. Derive a slug from the task name and create:
 
 ```powershell
 # PowerShell
 $slug = ($taskName -replace '[^a-zA-Z0-9_-]', '-' -replace '-+', '-').ToLower().Trim('-')
-$CRUCIBLE_DIR = Join-Path $HOME ".copilot" "crucible" $slug
-New-Item -ItemType Directory -Path $CRUCIBLE_DIR -Force | Out-Null
+$FOUNDRY_DIR = Join-Path $HOME ".copilot" "foundry" $slug
+New-Item -ItemType Directory -Path $FOUNDRY_DIR -Force | Out-Null
 ```
 ```bash
 # Bash
 slug=$(echo "$taskName" | tr -cd 'a-zA-Z0-9_-' | tr '[:upper:]' '[:lower:]')
-CRUCIBLE_DIR="$HOME/.copilot/crucible/$slug"
-mkdir -p "$CRUCIBLE_DIR"
+FOUNDRY_DIR="$HOME/.copilot/foundry/$slug"
+mkdir -p "$FOUNDRY_DIR"
 ```
 
-Store `$CRUCIBLE_DIR` in memory. All `crucible-*` files, `plan.md`, and `design-doc.md` go here, NOT in the repo.
+Store `$FOUNDRY_DIR` in memory. All `crucible-*` files, `plan.md`, and `design-doc.md` go here, NOT in the repo. Forge will later use the same `$FOUNDRY_DIR` for its working files — both skills share one directory per task.
 
 ### Read Inputs
 
@@ -357,13 +357,13 @@ For each model (Opus, Codex, Gemini), dispatch both agents with the context pack
 
 Collect outputs from all agents (3 plan-drafters + up to 3 design-drafters if complexity is large).
 
-Store each model's output in `$CRUCIBLE_DIR`:
+Store each model's output in `$FOUNDRY_DIR`:
 
 - `crucible-round-1-opus.md`
 - `crucible-round-1-codex.md`
 - `crucible-round-1-gemini.md`
 
-Write initial `crucible-state.md` to `$CRUCIBLE_DIR`:
+Write initial `crucible-state.md` to `$FOUNDRY_DIR`:
 
 ```markdown
 # Crucible State
@@ -529,17 +529,17 @@ Skip cross-check if complexity is small (no design doc to cross-check against).
 
 ## Phase 6 — Output & Cleanup
 
-Write final files to `$CRUCIBLE_DIR`:
+Write final files to `$FOUNDRY_DIR`:
 
 ```
-~/.copilot/crucible/<task-slug>/
+~/.copilot/foundry/<task-slug>/
   plan.md               ← always
   design-doc.md         ← only if complexity is large and design doc was generated
 ```
 
 ### Safe Cleanup (two-phase)
 
-1. **Write final files first** — write `plan.md` (always) and `design-doc.md` (large tasks only) to `$CRUCIBLE_DIR`
+1. **Write final files first** — write `plan.md` (always) and `design-doc.md` (large tasks only) to `$FOUNDRY_DIR`
 2. **Verify outputs exist** — confirm `plan.md` exists and is non-empty. For large tasks, also confirm `design-doc.md` exists and is non-empty.
 3. **THEN delete intermediates** — only after verification:
    - `crucible-round-*.md` (all round outputs)
@@ -565,7 +565,7 @@ Present completion summary:
 ║   → plan.md       [X splits, Y files]║
 ║   → design-doc.md [generated/skipped]║
 ║                                      ║
-║ Location: $CRUCIBLE_DIR              ║
+║ Location: $FOUNDRY_DIR              ║
 ╠══════════════════════════════════════╣
 ║ Options:                             ║
 ║ 1. Hand off to Forge (/forge)        ║
@@ -579,13 +579,14 @@ Present completion summary:
 
 ### Option 1: Hand off to Forge
 
-- Tell the user to run `/forge` and point it at `$CRUCIBLE_DIR/plan.md`
+- Tell the user to run `/forge` and point it at `$FOUNDRY_DIR/plan.md`
 - Forge will pick up `plan.md` automatically (and `design-doc.md` if present for large tasks)
-- Example: `Forge this. Plan is at ~/.copilot/crucible/<task-slug>/plan.md`
+- Forge uses the same `$FOUNDRY_DIR` — no need to specify a separate output path
+- Example: `Forge this. Plan is at ~/.copilot/foundry/<task-slug>/plan.md`
 
 ### Option 2: Done
 
-- Confirm files are written to `$CRUCIBLE_DIR` and exit
+- Confirm files are written to `$FOUNDRY_DIR` and exit
 
 ---
 
@@ -596,9 +597,9 @@ Present completion summary:
 3. **Identical context packets** — all 3 models must receive byte-identical input each round
 4. **Forge compatibility is non-negotiable** — `plan.md` and `design-doc.md` MUST pass Forge's Phase 3 parser
 5. **Platform awareness** — detect ADO vs GitHub from git remote, use appropriate MCP tools
-6. **Clean up intermediates** — only `plan.md` (and `design-doc.md` for large tasks) survive in `$CRUCIBLE_DIR`
+6. **Clean up intermediates** — only `plan.md` (and `design-doc.md` for large tasks) survive in `$FOUNDRY_DIR`
 7. **Gemini sync mode** — always dispatch Gemini with `mode="sync"`, never background
 8. **User approval before cleanup** — don't delete intermediate files until the user has chosen an option in Phase 6
-9. **State persistence** — write `crucible-state.md` to `$CRUCIBLE_DIR` after every round so the process can resume
+9. **State persistence** — write `crucible-state.md` to `$FOUNDRY_DIR` after every round so the process can resume
 10. **Token cost awareness** — in rounds 2+, only pass the PREVIOUS round's outputs (not all historical rounds) to keep context manageable
 11. **Zero repo pollution** — never write any Crucible files to the source repo. Only Forge writes code changes to the repo.

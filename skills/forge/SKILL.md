@@ -18,7 +18,7 @@ Forge is a full task lifecycle skill. It takes a task from raw documents to fini
 
 Before asking for documents, check if a `forge-state.md` already exists in the Forge working directory:
 
-1. Search for `forge-state.md` in `~/.copilot/forge/*/` (scan all task directories)
+1. Search for `forge-state.md` in `~/.copilot/foundry/*/` (scan all task directories)
 2. If found, read it and validate:
    - Does the branch still exist? (`git branch --list <branch>`)
    - Are the split/iteration counters consistent?
@@ -279,33 +279,33 @@ git ls-remote --exit-code origin
 
 If any preflight check fails, do NOT proceed. Report the failure and wait for the user.
 
-#### 2. Forge Working Directory
+#### 2. Foundry Working Directory
 
-All Forge working files live **outside the repo** — zero repo pollution. No `.gitignore` changes needed.
+All Forge working files live in the shared Foundry directory — the same `$FOUNDRY_DIR` that Crucible uses. If Crucible ran first, the directory (with `plan.md` and `design-doc.md`) already exists.
 
-Derive a slug from the task branch name and create the working directory:
+Derive a slug from the task branch prefix and resolve the directory:
 
 ```powershell
 # PowerShell
 $slug = ($BRANCH_PREFIX -replace '[/\\]', '-' -replace '[^a-zA-Z0-9_-]', '').ToLower()
-$FORGE_DIR = Join-Path $HOME ".copilot" "forge" $slug
-New-Item -ItemType Directory -Path $FORGE_DIR -Force | Out-Null
+$FOUNDRY_DIR = Join-Path $HOME ".copilot" "foundry" $slug
+New-Item -ItemType Directory -Path $FOUNDRY_DIR -Force | Out-Null
 ```
 ```bash
 # Bash
 slug=$(echo "$BRANCH_PREFIX" | tr '/\\' '--' | tr -cd 'a-zA-Z0-9_-' | tr '[:upper:]' '[:lower:]')
-FORGE_DIR="$HOME/.copilot/forge/$slug"
-mkdir -p "$FORGE_DIR"
+FOUNDRY_DIR="$HOME/.copilot/foundry/$slug"
+mkdir -p "$FOUNDRY_DIR"
 ```
 
-Store `$FORGE_DIR` in memory. All `forge-*` files go here, NOT in the repo.
+Store `$FOUNDRY_DIR` in memory. All `forge-*` files go here alongside Crucible's outputs. NOT in the repo.
 
 #### 3. Create Coordination Files
 
-Create files in `$FORGE_DIR`:
+Create files in `$FOUNDRY_DIR`:
 
 ```
-~/.copilot/forge/<task-slug>/
+~/.copilot/foundry/<task-slug>/
 ├── forge-state.md               ← orchestrator loop state
 ├── forge-coordination.md        ← consolidated verifier feedback
 ├── forge-verifier-plan.md       ← plan verifier output (isolated)
@@ -949,7 +949,7 @@ Once all three deep review perspectives are satisfied:
    See `forge-task-log.md` in the Forge working directory for iteration-by-iteration details.
 
    ## Working Directory
-   [full $FORGE_DIR path]
+   [full $FOUNDRY_DIR path]
 
    ## Next Steps
    1. Review the code on each split branch
@@ -961,29 +961,29 @@ Once all three deep review perspectives are satisfied:
    ```
    ✅ Forge complete.
 
-   Summary  : [$FORGE_DIR/forge-summary.md]
+   Summary  : [$FOUNDRY_DIR/forge-summary.md]
    Branches : [list split branches]
-   Log      : [$FORGE_DIR/forge-task-log.md]
+   Log      : [$FOUNDRY_DIR/forge-task-log.md]
 
    Create PRs from each split branch when ready — merge in order.
    ```
 
 4. Auto-cleanup (no prompts):
 
-   Delete all forge working files in `$FORGE_DIR` except outputs (`forge-summary.md` and `forge-task-log.md`):
+   Delete all forge working files in `$FOUNDRY_DIR` except outputs (`forge-summary.md` and `forge-task-log.md`):
 
    ```powershell
    # PowerShell — clean up working files, keep outputs
-   Get-ChildItem -Path $FORGE_DIR -Filter "forge-*" |
+   Get-ChildItem -Path $FOUNDRY_DIR -Filter "forge-*" |
      Where-Object { $_.Name -notmatch '^forge-(summary|task-log)\.md$' } |
      Remove-Item -Force
    ```
    ```bash
    # Bash
-   find "$FORGE_DIR" -maxdepth 1 -name 'forge-*' ! -name 'forge-summary.md' ! -name 'forge-task-log.md' -delete
+   find "$FOUNDRY_DIR" -maxdepth 1 -name 'forge-*' ! -name 'forge-summary.md' ! -name 'forge-task-log.md' -delete
    ```
 
-   Log what was cleaned: `Cleaned up [N] working files in $FORGE_DIR. Kept forge-summary.md and forge-task-log.md.`
+   Log what was cleaned: `Cleaned up [N] working files in $FOUNDRY_DIR. Kept forge-summary.md and forge-task-log.md.`
 
 5. Auto-cleanup checkpoint tags (no prompts):
 
@@ -1021,7 +1021,7 @@ Do not merge. Hand off to the user.
 - Each verifier writes to its own file — never have multiple verifiers write to the same file
 - Pass document summaries to code agents — never send full documents to every agent
 - Follow the host environment's commit trailer policy — never impose or ban specific trailers
-- All forge working files live in `$FORGE_DIR` (~/.copilot/forge/<task-slug>/) — never in the repo
+- All forge working files live in `$FOUNDRY_DIR` (~/.copilot/foundry/<task-slug>/) alongside Crucible outputs — never in the repo
 - Always flag conflicting feedback between deep review perspectives and ask user before resolving
 - Always cap deep review rounds at 5 — if not satisfied by then, pause and ask user
 - Architecture doc is required for LARGE tasks — if not provided, block execution and ask the user. For SMALL tasks (as classified by Crucible), skip architecture and design doc requirements entirely.
