@@ -112,6 +112,7 @@ copilot plugin install shshivakumar_microsoft/foundry
 
 ## Version
 
+- **v1.4.2** — Round 12 fixes: Forge readiness now blocks on missing ## Complexity section and missing design doc for large tasks; Crucible Phase 5-6 fully complexity-aware (validation/cross-check/output/cleanup/hand-off all conditional on small vs large); Phase 6 design verifier skip path tightened for large tasks
 - **v1.4.1** — Complexity flow fixes (round 11 review): format mismatch between plan template (`Classification: small`) and Forge detection fixed, code-agent spec updated for conditional summaries, Phase 7 cleanup made dynamic (only lists existing files), resume backward compat for pre-v1.4.0 states, Crucible validation checks for ## Complexity section, convergence logic handles plan-only mode, plan-verifier checks complexity section integrity, README qualified for small-task paths, log message punctuation standardized
 - **v1.4.0** — Task complexity assessment: Crucible classifies tasks as small/large, recommends design doc decision. Forge reads complexity flag — skips design doc, architecture doc, and their verifiers for small tasks. Plan template includes `## Complexity` section. Scribe logs complexity and skipped verifiers. Caution messages shown when ceremony is reduced.
 - **v1.3.6** — Doc/state polish: README reflects user-prompted base branch, forge-state template uses dynamic chained flag, legacy state resume asks for missing base-branch, Phase 6 guard prevents independent splits from chaining

@@ -123,8 +123,13 @@ Extract and internalize the following from each document.
 
 ### Plan-Specific Validation (required for execution)
 
+- [ ] Complexity section is present in plan
+  - If missing → `[BLOCKING]` Plan must include a `## Complexity` section with `Classification: small` or `Classification: large`. Forge cannot determine verifier strategy without it. Offer to classify the plan yourself or ask the user.
 - [ ] Architecture doc is provided (LARGE tasks only — skip for small tasks)
   - If missing AND complexity is large → `[BLOCKING]` Architecture doc is required. Provide one or ask Crucible to generate one.
+  - If missing AND complexity is small → not blocking, skip silently
+- [ ] Design doc is provided (LARGE tasks only — skip for small tasks)
+  - If missing AND complexity is large → `[BLOCKING]` Design doc is required for full ceremony. Provide one or ask Crucible to generate one.
   - If missing AND complexity is small → not blocking, skip silently
 - [ ] Task splits are present and meaningfully scoped
   - If missing → `[MISSING]` warn, offer to create splits yourself or ask user to add them
@@ -180,7 +185,9 @@ Present a structured report using this exact format:
 - [Specific strengths, e.g. "Plan has file-level breakdown with dependencies"]
 
 ### Gaps and Warnings
+- [BLOCKING]    Complexity section missing from plan — REQUIRED, Forge cannot determine verifier strategy
 - [BLOCKING]    Architecture doc not provided — REQUIRED for large tasks, cannot proceed
+- [BLOCKING]    Design doc not provided — REQUIRED for large tasks (full ceremony)
 - [MISSING]     No branch name in plan
 - [MISSING]     No file-level breakdown in plan — cannot safely spawn per-file agents
 - [INCOMPLETE]  Design doc missing error handling strategy
@@ -562,7 +569,8 @@ SPLIT START (put the clay on the wheel)
 
        - **Design Verifier** → runs only at SPLIT COMPLETION (all files done), **LARGE tasks only**
          If `complexity: small` in forge-state.md, skip entirely. Log: `⚡ Design verifier skipped — small task (per Crucible complexity assessment)`
-         If no design doc was provided (Phase 4 readiness shows 'NOT PROVIDED'), skip the design verifier. Log: 'Design verifier skipped — no design doc provided.'
+         If no design doc was provided AND complexity is large, this should not happen — readiness should have blocked. Log a warning: `⚠️ Design doc missing for large task — this should have been caught in Phase 4 readiness. Skipping design verifier.`
+         If no design doc was provided AND complexity is small, this verifier was already skipped above.
          ```
          task(agent_type="foundry/design-verifier", prompt="
            Design doc: [full design document]
