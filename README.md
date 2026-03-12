@@ -159,14 +159,13 @@ You: "Forge this. Plan is at ./plan.md"
             +-------V-------+
             |    FORGE       |
             |                |
-            |  1. Read plan  |  <- Validates all required fields
-            |  2. Confirm    |  <- Shows preview, you say "go"
-            |  3. Code       |  <- Agent writes each file (headless from here)
-            |  4. Verify     |  <- Plan/design/arch verifiers check it
-            |  5. Iterate    |  <- Fix issues, re-verify (max 10 rounds)
-            |  6. Gate       |  <- Deep review + build verification per split
-            |  7. Commit     |  <- Push each split after passing gate
-            |  8. Done       |  <- Branch pushed, you create the PR
+            |  1. Intake     |  <- Paths to plan (+ docs for large tasks)
+            |  2. Read       |  <- Locates & reads all documents
+            |  3. Analyze    |  <- Generates summaries, checks complexity
+            |  4. Readiness  |  <- Validates plan fields, shows report
+            |  5. Confirm    |  <- Shows preview, you say "go" (last prompt)
+            |  6. Execute    |  <- Code → verify → iterate (headless, RALPH loop)
+            |  7. Wrap up    |  <- Summary, push, cleanup
             +---------------+
 ```
 
@@ -181,7 +180,6 @@ During planning, Crucible collects everything Forge needs so Forge can run headl
 | Task description | Always | Text, file path, URL, or work item ID |
 | Architecture doc | Always (optional) | File path or "none" |
 | Existing plan/design doc | Always (optional) | File path or "none" |
-| Output directory | Always | Path (defaults to current dir) |
 | Complexity confirmation | After assessment | Agree with AI recommendation or override |
 | Base branch | Always | `main`, `master`, `develop`, `build/main/latest`, etc. |
 | Branch prefix | Always | `user/<alias>/<name>`, `feature/<name>`, custom |
@@ -196,7 +194,8 @@ Forge is designed to be **headless** -- it reads everything from the plan and on
 
 | Prompt | When | Purpose |
 |--------|------|---------|
-| Document locations | Start (Phase 1) | Paths to plan.md, design-doc.md, architecture doc |
+| Plan location | Start (Phase 1, step 1) | Path to plan.md + task description |
+| Remaining docs | After reading plan (Phase 1, step 2) | Architecture + design doc — only asked for large tasks |
 | "Shall I proceed?" | After readiness check (Phase 5) | Final go/no-go before execution |
 
 That's it. After you say "go", Forge runs to completion without interruption -- writing code, verifying, committing, pushing, and reviewing autonomously.

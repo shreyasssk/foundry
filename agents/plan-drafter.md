@@ -30,9 +30,6 @@ Classification: [small | large]
 Design Doc: [skip | required]
 Architecture Doc: [skip | required]
 
-## Branch
-`feature/[descriptive-kebab-case-branch-name]`
-
 ## Execution Config
 Base Branch: [base branch name — e.g., main, master, develop, build/main/latest]
 Branch Prefix: [full prefix pattern — e.g., user/johndoe/add-auth, feature/add-auth, forge/add-auth]

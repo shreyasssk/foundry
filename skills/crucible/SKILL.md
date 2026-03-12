@@ -316,8 +316,8 @@ $FOUNDRY_DIR = Join-Path $HOME ".copilot" "foundry" $slug
 New-Item -ItemType Directory -Path $FOUNDRY_DIR -Force | Out-Null
 ```
 ```bash
-# Bash
-slug=$(echo "$taskName" | tr -cd 'a-zA-Z0-9_-' | tr '[:upper:]' '[:lower:]')
+# Bash — replace non-safe chars with dashes (matches PowerShell behavior)
+slug=$(echo "$taskName" | sed 's/[^a-zA-Z0-9_-]/-/g; s/-\{2,\}/-/g; s/^-//; s/-$//' | tr '[:upper:]' '[:lower:]')
 FOUNDRY_DIR="$HOME/.copilot/foundry/$slug"
 mkdir -p "$FOUNDRY_DIR"
 ```
@@ -405,6 +405,15 @@ For each model (Opus, Codex, Gemini), dispatch both agents with the context pack
 - Whether design doc generation is needed
 
 Collect outputs from all agents (3 plan-drafters + up to 3 design-drafters if complexity is large).
+
+**Model failure handling**: If a model fails to respond (timeout, API error, empty output):
+1. Retry once with the same model after 10 seconds
+2. If retry fails, use `claude-sonnet-4.6` as a universal fallback model
+3. If fallback also fails, proceed with 2-model convergence — log the gap:
+   ```
+   ⚠️ [model] failed (retry + fallback exhausted). Proceeding with 2-model convergence.
+   ```
+4. If 2+ models fail, STOP and ask the user — 1-model output is not a valid convergence.
 
 Store each model's output in `$FOUNDRY_DIR`:
 
@@ -588,17 +597,18 @@ Write final files to `$FOUNDRY_DIR`:
 
 ### Safe Cleanup (two-phase)
 
+**Rule 8 gate**: Do not delete ANY files until the user has chosen an option (Hand off / Done) from the completion summary below.
+
 1. **Write final files first** — write `plan.md` (always) and `design-doc.md` (large tasks only) to `$FOUNDRY_DIR`
 2. **Verify outputs exist** — confirm `plan.md` exists and is non-empty. For large tasks, also confirm `design-doc.md` exists and is non-empty.
-3. **THEN delete intermediates** — only after verification:
-   - `crucible-round-*.md` (all round outputs)
-   - `crucible-state.md` (convergence tracker)
-4. If verification fails — DO NOT delete intermediates. Warn the user:
+3. If verification fails — DO NOT delete intermediates. Warn the user:
    ```
    ⚠️ Output verification failed. Intermediate files preserved for recovery.
    ```
-
-**Rule 8 gate**: Do not delete ANY files until the user has chosen an option (Hand off / Done).
+4. **Present completion summary** (see below) and **wait for user choice**.
+5. **THEN delete intermediates** — only after user chooses "Hand off" or "Done":
+   - `crucible-round-*.md` (all round outputs)
+   - `crucible-state.md` (convergence tracker)
 
 Present completion summary:
 

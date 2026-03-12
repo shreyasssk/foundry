@@ -28,7 +28,7 @@ Codebase context        architecture doc (large tasks only)
 | 2 | **Context** | Read inputs, assemble shared context packet (includes complexity) |
 | 3 | **Fleet Dispatch** | 3 models draft plan (+ design doc if large) via `task(agent_type="foundry/plan-drafter")` and optionally `task(agent_type="foundry/design-drafter")` |
 | 4 | **Convergence** | RALPH loop — cross-review with plain-language convergence checks until all 3 agree (max 10 rounds) |
-| 5 | **Validate** | Merge, validate against Forge's required fields |
+| 5 | **Merge & Validate** | Merge, validate against Forge's required fields |
 | 6 | **Output** | Write final files, cleanup intermediates |
 | 7 | **Actions** | Hand off to Forge or done |
 

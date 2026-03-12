@@ -44,20 +44,21 @@ Before asking for documents, check if a `forge-state.md` already exists in the F
 
 ### New Task Intake
 
-If no state found or user chose fresh start, ask for document locations in a single message:
+If no state found or user chose fresh start, use a **two-step intake** to avoid asking for unnecessary documents:
 
+**Step 1 — Get the plan (always required):**
 ```
-To get started with Forge, please provide paths to the following.
+To get started with Forge, please provide the path to your plan.
 You can give a file path or a directory (I'll find the right files inside).
 
 1. Plan               — REQUIRED (file or folder path)
-2. Architecture doc   — required for large tasks (file or folder path)
-3. Design doc         — required for large tasks (file or folder path)
-4. Product spec       — optional (skip if not applicable)
-5. Task description   — brief summary or work item ID
+2. Task description   — brief summary or work item ID
 ```
 
-**Complexity-aware intake:** After reading the plan, check for a `## Complexity` section:
+Wait for the user's response. Read the plan and check for a `## Complexity` section.
+
+**Step 2 — Check complexity, then conditionally ask for remaining docs:**
+
 - If `Classification: small` is found → this is a Crucible-assessed small task. **Do NOT prompt for design doc or architecture doc.** Display:
   ```
   ⚡ Detected complexity: SMALL (from Crucible plan)
@@ -65,7 +66,20 @@ You can give a file path or a directory (I'll find the right files inside).
      — Skipping architecture doc requirement
      Proceeding with plan-only execution.
   ```
-- If `Classification: large` is found (or no complexity section exists) → treat as a large task requiring full ceremony (architecture doc required, design doc expected)
+  Optionally ask:
+  ```
+  Any other context? (product spec, additional docs — or press Enter to skip)
+  ```
+
+- If `Classification: large` is found (or no complexity section exists) → treat as a large task requiring full ceremony. Ask for remaining docs:
+  ```
+  Detected complexity: LARGE — requesting full documents.
+
+  Please also provide paths to:
+  1. Architecture doc   — REQUIRED for large tasks (file or folder path)
+  2. Design doc         — required for large tasks (file or folder path)
+  3. Product spec       — optional (skip if not applicable)
+  ```
 
 Wait for the user's response. Do not proceed until they reply.
 
@@ -292,22 +306,22 @@ If any preflight check fails, do NOT proceed. Report the failure and wait for th
 
 All Forge working files live in the shared Foundry directory — the same `$FOUNDRY_DIR` that Crucible uses. If Crucible ran first, the directory (with `plan.md` and `design-doc.md`) already exists.
 
-Derive a slug from the task branch prefix and resolve the directory:
+Derive the slug from the **task name** (same source as Crucible) — extract from the plan's `## Overview` title or the task description provided at intake. Do NOT derive from branch prefix (different input → different slug → broken shared directory contract).
 
 ```powershell
-# PowerShell
-$slug = ($BRANCH_PREFIX -replace '[/\\]', '-' -replace '[^a-zA-Z0-9_-]', '').ToLower()
+# PowerShell — derive slug from task name (must match Crucible's algorithm)
+$slug = ($taskName -replace '[^a-zA-Z0-9_-]', '-' -replace '-+', '-').ToLower().Trim('-')
 $FOUNDRY_DIR = Join-Path $HOME ".copilot" "foundry" $slug
 New-Item -ItemType Directory -Path $FOUNDRY_DIR -Force | Out-Null
 ```
 ```bash
-# Bash
-slug=$(echo "$BRANCH_PREFIX" | tr '/\\' '--' | tr -cd 'a-zA-Z0-9_-' | tr '[:upper:]' '[:lower:]')
+# Bash — derive slug from task name (must match Crucible's algorithm)
+slug=$(echo "$taskName" | sed 's/[^a-zA-Z0-9_-]/-/g; s/-\{2,\}/-/g; s/^-//; s/-$//' | tr '[:upper:]' '[:lower:]')
 FOUNDRY_DIR="$HOME/.copilot/foundry/$slug"
 mkdir -p "$FOUNDRY_DIR"
 ```
 
-Store `$FOUNDRY_DIR` in memory. All `forge-*` files go here alongside Crucible's outputs. NOT in the repo.
+**Where does `$taskName` come from?** Read the plan's title (first `# ` heading) or the `## Overview` section's first sentence. This is the same human-readable task name that Crucible used to derive its slug.
 
 #### 3. Create Coordination Files
 
@@ -610,25 +624,23 @@ SPLIT START (put the clay on the wheel)
 
        Generate per-file diffs (not full-repo diff):
 
-       Write diffs to the project folder using OS-agnostic paths:
-       - Use the project's working directory: `forge-diff-<filename>.patch`
-       - Or use the system temp directory: `$env:TEMP` (Windows) / `$TMPDIR` (Unix)
+       Write diffs to `$FOUNDRY_DIR` (never to the repo working directory):
+       - All forge working files MUST live in `$FOUNDRY_DIR` — see Rule at line ~1091
        - NEVER hardcode `/tmp/` — this fails on Windows
 
        ```powershell
-       # PowerShell — use UTF8 encoding (default > produces UTF-16 which breaks git apply)
-       # PowerShell — use UTF8NoBOM to avoid BOM issues with git apply
+       # PowerShell — write verifier diffs to $FOUNDRY_DIR (not repo root)
        # PowerShell 7+: Out-File -Encoding utf8NoBOM
        # PowerShell 5.1: [IO.File]::WriteAllText($path, (git diff HEAD -- <file> | Out-String))
-       git diff HEAD -- <file1> | Out-File -Encoding utf8NoBOM forge-diff-file1.patch
-       git diff HEAD -- <file2> | Out-File -Encoding utf8NoBOM forge-diff-file2.patch
+       git diff HEAD -- <file1> | Out-File -Encoding utf8NoBOM "$FOUNDRY_DIR/forge-diff-file1.patch"
+       git diff HEAD -- <file2> | Out-File -Encoding utf8NoBOM "$FOUNDRY_DIR/forge-diff-file2.patch"
        # Fallback for PowerShell 5.1 (no utf8NoBOM):
-       # [IO.File]::WriteAllText("forge-diff-file1.patch", (git diff HEAD -- <file1> | Out-String), [Text.UTF8Encoding]::new($false))
+       # [IO.File]::WriteAllText("$FOUNDRY_DIR/forge-diff-file1.patch", (git diff HEAD -- <file1> | Out-String), [Text.UTF8Encoding]::new($false))
        ```
        ```bash
-       # Bash
-       git diff HEAD -- <file1> > forge-diff-file1.patch
-       git diff HEAD -- <file2> > forge-diff-file2.patch
+       # Bash — write verifier diffs to $FOUNDRY_DIR (not repo root)
+       git diff HEAD -- <file1> > "$FOUNDRY_DIR/forge-diff-file1.patch"
+       git diff HEAD -- <file2> > "$FOUNDRY_DIR/forge-diff-file2.patch"
        ```
 
        Wait for ALL active verifiers to complete.
@@ -887,7 +899,7 @@ When the 10-iteration hard cap is reached without all verifiers approving — th
    4. Stop entirely — I'll review manually
    ```
 3. Wait for user decision. Do not proceed without explicit input.
-4. **If user chooses option 1 (extend)**: Update `hard-cap-iterations` in `forge-state.md` to the new value (15) before resuming. This ensures resume-safety — if the session is interrupted during the extended run, the state file reflects the correct cap.
+4. **If user chooses option 1 (extend)**: Update `hard-cap-iterations` in `forge-state.md` to the new value (15) before resuming. This ensures resume-safety — if the session is interrupted during the extended run, the state file reflects the correct cap. (If the extended cap is also reached, the same menu is presented again — the user can extend further in increments of 5, or choose any other option.)
 
 ---
 
