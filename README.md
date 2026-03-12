@@ -29,13 +29,21 @@ You go from "here's my work item" to "here's a branch with reviewed code" withou
   ```
 
 ### Install Foundry
-```
-/plugin install shshivakumar_microsoft/foundry
+
+**Option 1 — Clone from odsp-microsoft (recommended for ODSP team):**
+```powershell
+git clone https://github.com/odsp-microsoft/foundry.git "$HOME\.claude\plugins\local\foundry"
 ```
 
-Or clone locally (works for private repos your team can't access):
+**Option 2 — Clone from personal repo:**
 ```powershell
 git clone https://github.com/shshivakumar_microsoft/foundry.git "$HOME\.claude\plugins\local\foundry"
+```
+
+To update to the latest version:
+```powershell
+cd "$HOME\.claude\plugins\local\foundry"
+git pull
 ```
 
 Verify it's installed:
