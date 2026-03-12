@@ -94,7 +94,23 @@ All agent dispatches use explicit `task(agent_type="foundry/<name>")` calls.
 |-------|-----|----------|
 | Claude Opus | `claude-opus-4.6` | Deep reasoning, architecture |
 | GPT Codex | `gpt-5.1-codex-max` | Code-first planning |
-| Gemini Pro | `gemini-3-pro-preview` | Breadth, alternatives |
+| Gemini Pro | `gemini-3-pro-preview` | Breadth, alternatives (**must use `mode="sync"` — fails on background dispatch**) |
+
+---
+
+## Task Slug Algorithm
+
+The task slug is derived from the branch prefix and used as the directory name under `~/.copilot/foundry/`:
+
+1. Take the `Branch Prefix` from `## Execution Config` (e.g., `user/johndoe/add-auth`)
+2. Replace path separators (`/`) with hyphens (`-`)
+3. Convert to lowercase
+4. Remove any characters not matching `[a-z0-9\-]`
+5. Collapse consecutive hyphens into one
+6. Trim leading/trailing hyphens
+7. Result: `user-johndoe-add-auth`
+
+This slug is also used for checkpoint tags (`forge-checkpoint--<slug>-split-N-iter-I`), forge-state references, and the shared working directory.
 
 ---
 
@@ -191,7 +207,7 @@ Both Crucible and Forge share one directory per task. Crucible creates it first;
 
 ## Version History
 
-- **v1.6.0** — Split strategy assessment: Crucible evaluates whether a task can be done on a single branch or needs multi-split branching. Stores `Split Strategy: single | multi` in plan's `## Execution Config`. Forge reads strategy and adjusts branch creation (no `/split-N` for single), push commands, rebase targets, forge-state template, task log header, completion summary, and user-facing report. Single-branch mode simplifies the flow for small/tightly-coupled tasks. Plan-drafter template updated. Hard rules updated to respect single-branch mode.
+- **v1.6.0** — Split strategy assessment: Crucible evaluates whether a task can be done on a single branch or needs multi-split branching. Stores `Split Strategy: single | multi` in plan's `## Execution Config`. Forge reads strategy and adjusts branch creation (no `/split-N` for single), push commands, rebase targets, forge-state template, task log header, completion summary, and user-facing report. Single-branch mode simplifies the flow for small/tightly-coupled tasks. Plan-drafter template updated. Hard rules updated to respect single-branch mode. Additional safety: execution config input validation (regex guards against command injection), DAG validation via Kahn's algorithm, checkpoint tag scoping to current task, build-fix hard cap of 5, deep review diff encoding with PS5.1 fallback, coordination file archiving with delimiter counting.
 - **v1.5.0** — Headless Forge: branch config (base branch, prefix, split relationship) moved from Forge Phase 5 to Crucible intake. Plan template includes `## Execution Config` section. Forge reads config from plan and runs headless after one "shall I proceed?" confirmation. Fallback prompting only if plan lacks execution config. Plan-drafter and plan-verifier updated for new section. README restructured: user-facing with examples, internals moved to ARCHITECTURE.md.
 - **v1.4.3** — Round 13 doc fixes: README Phase 1.5 aligned with SKILL.md (Phase 1 includes complexity, 1.5 = Validation), Phase 5 preview now complexity-aware for verifier text, scribe dispatch includes complexity field, deep-review fix loop verifier scope clarified, "two decisions" → "three", README Phase 2 arch doc qualified for large tasks, coordination file template covers small-task skip, Crucible context packet complexity instruction references plan-drafter template
 - **v1.4.2** — Round 12 fixes: Forge readiness now blocks on missing ## Complexity section and missing design doc for large tasks; Crucible Phase 5-6 fully complexity-aware (validation/cross-check/output/cleanup/hand-off all conditional on small vs large); Phase 6 design verifier skip path tightened for large tasks

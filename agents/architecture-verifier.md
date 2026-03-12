@@ -18,6 +18,8 @@ Check that code changes respect the architecture document's constraints, boundar
 - **List of files modified**: Which files were touched
 - **Split description**: What this split aims to accomplish
 
+> **Note:** This verifier is only dispatched for **large** tasks. Small tasks (per Crucible complexity assessment) skip architecture verification entirely — Forge does not dispatch this agent for them.
+
 ## What to Check
 
 1. **Layer boundaries** — Do changes respect the defined layers? Flag any cross-layer violations (e.g., UI calling data layer directly).

@@ -25,6 +25,7 @@ Before asking for documents, check if a `forge-state.md` already exists in the F
    - Is the working tree clean? (`git status --porcelain`)
    - Does `base-branch` exist? If missing (legacy state from pre-v1.3.5), ask the user to provide it before resuming.
    - Does `complexity` exist? If missing (legacy state from pre-v1.4.0), default to `large` and log: `⚠️ Pre-v1.4.0 state detected — assuming large task (full ceremony). Override with plan's ## Complexity section if present.`
+   - Does `split-strategy` exist? If missing (legacy state from pre-v1.5.0), default to `multi` and log: `⚠️ Pre-v1.5.0 state detected — assuming multi-split strategy. Override with plan's ## Execution Config → Split Strategy if present.`
 3. If valid, present to the user:
    ```
    Found existing Forge state:
@@ -133,7 +134,7 @@ Extract and internalize the following from each document.
 - Does the plan align with the design doc?
 - Does the design respect architecture constraints?
 - Are there contradictions or gaps between any two documents?
-- Is the file dependency graph acyclic? (Validate DAG — flag cycles as blocking errors)
+- Is the file dependency graph acyclic? Validate DAG using topological sort (Kahn's algorithm): build adjacency list from file dependencies, track in-degree per node, process zero-in-degree nodes iteratively. If any nodes remain after processing, a cycle exists — flag as `[BLOCKING]` with the cycle path.
 
 ### Plan-Specific Validation (required for execution)
 
@@ -170,7 +171,7 @@ After analysis, generate condensed summaries for each document. These summaries 
 [Condensed plan: splits overview, file breakdown, dependencies, acceptance criteria — max ~500 words]
 ```
 
-Write these summaries to the project folder. Code agents receive summaries; verifiers receive full documents.
+Write these summaries to `$FOUNDRY_DIR` (`~/.copilot/foundry/<task-slug>/`), not to the repo working directory. Code agents receive summaries; verifiers receive full documents.
 
 ---
 
@@ -245,6 +246,25 @@ Extract from the plan's `## Execution Config` section:
   - Split strategy (default: multi)
   - Split relationship — only ask if split strategy is multi (default: chained)
 - This is the ONLY scenario where Forge prompts for these values.
+
+### Validate Execution Config Inputs
+
+Before using any execution config values, validate them against safe patterns:
+
+```
+Validation rules:
+  Base Branch    : must match ^[\w\-\/\.]+$  (alphanumeric, hyphens, slashes, dots only)
+  Branch Prefix  : must match ^[\w\-\/\.]+$  (same pattern)
+  Split Strategy : must be exactly "single" or "multi"
+  Split Relationship : must be exactly "chained" or "independent"
+
+If any value fails validation:
+  - Log: ⚠️ Invalid execution config value for <field>: "<raw-value>" — contains unsafe characters.
+  - Do NOT use the value in any git command or shell operation.
+  - Fall back to prompting the user for a corrected value.
+```
+
+This prevents command injection if a malicious plan.md contains shell metacharacters in branch names.
 
 **If split strategy is `single`**: Log and adapt:
 ```
@@ -491,6 +511,9 @@ chained: <true|false from plan's ## Execution Config → Split Relationship>
 
 ## Failure Log
 (none)
+
+## Retry Counts
+(tracks consecutive failures per file — mark STUCK at 3)
 ```
 
 Update `forge-state.md` after every step:
@@ -528,7 +551,7 @@ Update `forge-state.md` after every step:
 
 **Multi-split mode:** Repeat for each split in order:
 
-**Important:** If the user chose "independent" splits in Phase 5, only ONE split should be executing in this Forge session. If multiple splits somehow reached Phase 6 with `chained: false` in forge-state.md, STOP and remind the user that independent splits require separate Forge executions.
+**Important:** If the user chose "independent" splits in Phase 5, only ONE split should be executing in this Forge session. If `split-strategy` is `multi` and `chained: false` in forge-state.md, and multiple splits somehow reached Phase 6, STOP and remind the user that independent splits require separate Forge executions. (This check does NOT apply to `split-strategy: single` — single-branch mode always has one unit of work regardless of the `chained` field.)
 
 ```
 SPLIT START (put the clay on the wheel)
@@ -562,7 +585,7 @@ SPLIT START (put the clay on the wheel)
        ")
        ```
 
-       Wait for ALL code agents to complete before continuing.
+       Wait for ALL code agents to complete before continuing. This is a hard synchronization barrier — do NOT proceed to step 3 until every dispatched agent has returned (success or failure). Verify each agent's status explicitly.
 
     3. HANDLE CODE AGENT FAILURES
        For each failed agent:
@@ -610,7 +633,7 @@ SPLIT START (put the clay on the wheel)
 
        - **Design Verifier** → runs only at SPLIT COMPLETION (all files done), **LARGE tasks only**
          If `complexity: small` in forge-state.md, skip entirely. Log: `⚡ Design verifier skipped — small task (per Crucible complexity assessment)`
-         If no design doc was provided AND complexity is large, this should not happen — readiness should have blocked. Log a warning: `⚠️ Design doc missing for large task — this should have been caught in Phase 4 readiness. Skipping design verifier.`
+         If no design doc was provided AND complexity is large, this is a **hard stop** — a large task MUST have a design doc for verification. Log: `❌ FATAL: Design doc missing for large task — aborting execution. Re-run Crucible to generate the design doc, then invoke Forge again.` and STOP execution immediately. Do NOT continue with remaining splits or deep review.
          If no design doc was provided AND complexity is small, this verifier was already skipped above.
          ```
          task(agent_type="foundry/design-verifier", prompt="
@@ -674,7 +697,7 @@ SPLIT START (put the clay on the wheel)
 
        Code agents read ONLY the latest section (last `---` delimited block). Full history is preserved for debugging and scribe reference.
 
-       If the file exceeds 50 sections, archive older sections to `forge-coordination-archive.md` and keep only the last 10 in the active file.
+       If the file exceeds 50 sections (count `---` delimiters), archive older sections to `forge-coordination-archive.md` and keep only the last 10 in the active file.
 
     6. SCRIBE (conditional)
 
@@ -684,7 +707,7 @@ SPLIT START (put the clay on the wheel)
          - If this is a deep review iteration
 
        Skip Scribe on clean mid-split iterations where all active verifiers approve
-       and there's nothing notable to record.
+       and there's nothing notable to record. When skipping, log: `ℹ️ Scribe skipped — all verifiers approved, no notable changes this iteration.`
 
        Scribe reads:
          - `forge-coordination.md` (consolidated verifier feedback)
@@ -735,11 +758,13 @@ SPLIT START (put the clay on the wheel)
 
        Generate the split's diff:
        ```powershell
-       # PowerShell
+       # PowerShell — write deep review diff to $FOUNDRY_DIR
+       # PowerShell 7+: Out-File -Encoding utf8NoBOM
+       # PowerShell 5.1: [IO.File]::WriteAllText($path, (git diff HEAD | Out-String), [Text.UTF8Encoding]::new($false))
        git diff HEAD | Out-File -Encoding utf8NoBOM "$FOUNDRY_DIR/forge-deep-review-diff.patch"
        ```
        ```bash
-       # Bash
+       # Bash — write deep review diff to $FOUNDRY_DIR
        git diff HEAD > "$FOUNDRY_DIR/forge-deep-review-diff.patch"
        ```
 
@@ -790,7 +815,7 @@ SPLIT START (put the clay on the wheel)
        - Write build errors to `forge-coordination.md`
        - Re-enter RALPH loop (step 2) to fix build errors
        - After fixes, re-run build (no need to re-run deep review unless files changed significantly)
-       - Repeat until build passes — no cap on build fix attempts (the RALPH iteration cap still applies)
+       - Repeat until build passes — hard cap of 5 build-fix attempts to prevent infinite loops. If build still fails after 5 attempts, present to user with options (similar to RALPH hard cap menu).
 
        If build **PASSES** → proceed to COMMIT AND PUSH (step 10)
 
@@ -899,7 +924,7 @@ When the 10-iteration hard cap is reached without all verifiers approving — th
    4. Stop entirely — I'll review manually
    ```
 3. Wait for user decision. Do not proceed without explicit input.
-4. **If user chooses option 1 (extend)**: Update `hard-cap-iterations` in `forge-state.md` to the new value (15) before resuming. This ensures resume-safety — if the session is interrupted during the extended run, the state file reflects the correct cap. (If the extended cap is also reached, the same menu is presented again — the user can extend further in increments of 5, or choose any other option.)
+4. **If user chooses option 1 (extend)**: Update `hard-cap-iterations` in `forge-state.md` to the new value (15) before resuming. This ensures resume-safety — if the session is interrupted during the extended run, the state file reflects the correct cap. Invoke Scribe to log the extension decision before continuing: `task(agent_type="foundry/scribe", prompt="Log hard cap extension: user chose to extend from 10 to 15 iterations for split N. Reason: [user's stated reason or 'no reason given']")`. (If the extended cap is also reached, the same menu is presented again — the user can extend further in increments of 5, or choose any other option.)
 
 ---
 
@@ -1064,15 +1089,17 @@ Write execution summary to `forge-summary.md`:
 
    Log what was cleaned: `Cleaned up [N] working files in $FOUNDRY_DIR. Kept forge-summary.md and forge-task-log.md.`
 
-5. Auto-cleanup checkpoint tags (no prompts):
+5. Auto-cleanup checkpoint tags for THIS task only (no prompts):
 
    ```powershell
-   # PowerShell
-   git tag -l "forge-checkpoint--*" | ForEach-Object { git tag -d $_; git push origin --delete $_ 2>$null }
+   # PowerShell — scope to current task slug to avoid deleting other sessions' tags
+   $taskSlug = "<slugified-task-branch>"  # same slug used when creating checkpoint tags
+   git tag -l "forge-checkpoint--$taskSlug*" | ForEach-Object { git tag -d $_; git push origin --delete $_ 2>$null }
    ```
    ```bash
-   # Bash
-   git tag -l 'forge-checkpoint--*' | xargs -I{} sh -c 'git tag -d {} && git push origin --delete {} 2>/dev/null'
+   # Bash — scope to current task slug
+   TASK_SLUG="<slugified-task-branch>"
+   git tag -l "forge-checkpoint--${TASK_SLUG}*" | xargs -I{} sh -c 'git tag -d {} && git push origin --delete {} 2>/dev/null'
    ```
 
    Log: `Cleaned up [N] checkpoint tags.`

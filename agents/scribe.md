@@ -32,7 +32,7 @@ Complexity: [small | large]
 
 Files worked on: [list]
 Verifier status: Plan [APPROVED/ISSUES] | Architecture [APPROVED/ISSUES/SKIPPED] | Design [APPROVED/ISSUES/SKIPPED]
-Skipped (complexity): [list any verifiers skipped due to small task classification, or "None"]
+Skip reasons   : [for each SKIPPED verifier, state reason — e.g., "Architecture: small task", "Design: small task", "Architecture: split completion only (mid-split iteration)", or "None"]
 
 What happened:
 [2-5 sentences: what was implemented, what was corrected, what was skipped and why]

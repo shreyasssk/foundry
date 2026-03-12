@@ -217,6 +217,8 @@ If a design doc is also provided, check every Forge requirement:
 
 **Strict checks**: Items 1, 3, 4, 5, 6 are blocking — plan/design CANNOT proceed to Forge without these. Item 2 is a warning (non-blocking but flagged).
 
+**Plan checks severity**: Items 1-10 are blocking. Items 11-13 are **[MISSING]** — if absent, Crucible MUST auto-add them from intake answers rather than rejecting the plan. These are Crucible's responsibility to populate.
+
 ### Cross-Check (if both provided)
 
 - Does the plan align with the design doc?
@@ -377,7 +379,7 @@ The plan.md MUST include a `## Execution Config` section with the user's branch 
 Base Branch: [user's chosen base branch]
 Branch Prefix: [user's chosen prefix pattern]
 Split Strategy: [single | multi]
-Split Relationship: [chained | independent]  ← only meaningful when Split Strategy is multi
+Split Relationship: [chained | independent]  ← REQUIRED when Split Strategy is multi; OMIT when single
 ```
 
 ---
@@ -386,9 +388,11 @@ Split Relationship: [chained | independent]  ← only meaningful when Split Stra
 
 Dispatch 3 parallel sub-agents using the task tool:
 
-- **Agent 1**: model `claude-opus-4.6`
-- **Agent 2**: model `gpt-5.1-codex-max`
-- **Agent 3**: model `gemini-3-pro-preview` (NOTE: use `mode="sync"` for Gemini — it fails on background dispatch)
+- **Agent 1**: model `claude-opus-4.6` — `mode="background"`
+- **Agent 2**: model `gpt-5.1-codex-max` — `mode="background"`
+- **Agent 3**: model `gemini-3-pro-preview` — **`mode="sync"` ONLY** (Gemini fails on background dispatch)
+
+> ℹ️ Agents 1 and 2 can run in parallel as background agents. Agent 3 (Gemini) MUST be dispatched with `mode="sync"`. A practical pattern: dispatch Opus and Codex as background, then dispatch Gemini synchronously, then collect all results.
 
 Each model dispatches agents from the foundry plugin:
 

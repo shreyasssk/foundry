@@ -108,6 +108,12 @@ Sensitive data handling in logs.]
 - Must identify who/what is affected
 - Not just "we need feature X" — explain WHY
 
+### Proposed Solution
+- Must describe the **technical approach** — how the solution fits into the existing architecture
+- Must include **key design decisions** with rationale for each
+- Must outline the **end-to-end flow** — what happens when the feature is used from start to finish
+- Not just "we will implement X" — explain HOW and WHY this approach over alternatives
+
 ### Types & Interfaces
 - **Real type definitions** with actual field names and types — not pseudocode
 - Use the project's actual language (TypeScript, C#, Python, etc.)

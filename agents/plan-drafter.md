@@ -34,7 +34,7 @@ Architecture Doc: [skip | required]
 Base Branch: [base branch name — e.g., main, master, develop, build/main/latest]
 Branch Prefix: [full prefix pattern — e.g., user/johndoe/add-auth, feature/add-auth, forge/add-auth]
 Split Strategy: [single | multi]
-Split Relationship: [chained | independent]  ← only include if multi
+Split Relationship: [chained | independent]  ← REQUIRED if Split Strategy is multi; OMIT if single
 
 ## Overview
 [2-4 sentences: what this task does, the technical approach, and scope boundaries]
