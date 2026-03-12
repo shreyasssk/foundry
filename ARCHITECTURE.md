@@ -100,15 +100,18 @@ All agent dispatches use explicit `task(agent_type="foundry/<name>")` calls.
 
 ## Task Slug Algorithm
 
-The task slug is derived from the branch prefix and used as the directory name under `~/.copilot/foundry/`:
+The task slug is derived from the **task name** (the plan's `# ` title or `## Overview` first sentence) and used as the directory name under `~/.copilot/foundry/`:
 
-1. Take the `Branch Prefix` from `## Execution Config` (e.g., `user/johndoe/add-auth`)
-2. Replace path separators (`/`) with hyphens (`-`)
-3. Convert to lowercase
+1. Take the task name (e.g., `Add OAuth2 Authentication`)
+2. Convert to lowercase
+3. Replace spaces and special characters with hyphens (`-`)
 4. Remove any characters not matching `[a-z0-9\-]`
 5. Collapse consecutive hyphens into one
 6. Trim leading/trailing hyphens
-7. Result: `user-johndoe-add-auth`
+7. Truncate to **50 characters** (break at the last whole word that fits; if the first word exceeds 50 chars, hard-truncate at 50)
+8. Result: `add-oauth2-authentication`
+
+> **Canonical source:** Both Crucible and Forge derive the slug from the task name using this algorithm. The slug is recorded in `crucible-state.md` and `forge-state.md` so downstream consumers never need to re-derive it.
 
 This slug is also used for checkpoint tags (`forge-checkpoint--<slug>-split-N-iter-I`), forge-state references, and the shared working directory.
 

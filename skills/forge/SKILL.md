@@ -24,8 +24,8 @@ Before asking for documents, check if a `forge-state.md` already exists in the F
    - Are the split/iteration counters consistent?
    - Is the working tree clean? (`git status --porcelain`)
    - Does `base-branch` exist? If missing (legacy state from pre-v1.3.5), ask the user to provide it before resuming.
-   - Does `complexity` exist? If missing (legacy state from pre-v1.4.0), default to `large` and log: `⚠️ Pre-v1.4.0 state detected — assuming large task (full ceremony). Override with plan's ## Complexity section if present.`
-   - Does `split-strategy` exist? If missing (legacy state from pre-v1.5.0), default to `multi` and log: `⚠️ Pre-v1.5.0 state detected — assuming multi-split strategy. Override with plan's ## Execution Config → Split Strategy if present.`
+   - Does `complexity` exist? If missing (legacy state from pre-v1.4.0), default to `large`, then immediately check the plan for a `## Complexity` or `Classification:` line — if found (e.g., `Classification: small`), override the default with that value. Log: `⚠️ Pre-v1.4.0 state detected — defaulted to large, then corrected to <actual> from plan.` (or `⚠️ ... assuming large task (full ceremony).` if plan has no classification).
+   - Does `split-strategy` exist? If missing (legacy state from pre-v1.5.0), infer it: read the plan's `## Execution Config → Split Strategy` field; if not found, count the number of splits in the plan — if exactly 1 split, use `single`, otherwise use `multi`. Log: `⚠️ Pre-v1.5.0 state detected — inferred split-strategy=<value> from plan.`
 3. If valid, present to the user:
    ```
    Found existing Forge state:
@@ -236,7 +236,9 @@ Extract from the plan's `## Execution Config` section:
 - `Base Branch` → store as `$BASE_BRANCH`
 - `Branch Prefix` → store as `$BRANCH_PREFIX`
 - `Split Strategy` → store as `$SPLIT_STRATEGY` (single or multi; default: multi)
-- `Split Relationship` → store as `$SPLIT_RELATIONSHIP` (chained or independent; only meaningful when multi)
+- `Split Relationship`:
+  - If `$SPLIT_STRATEGY` is `single`: set `$SPLIT_RELATIONSHIP = "N/A"` — skip reading this field (plan-drafter omits it for single-split plans)
+  - If `$SPLIT_STRATEGY` is `multi`: read `Split Relationship` from `## Execution Config` (required) → store as `$SPLIT_RELATIONSHIP` (chained or independent)
 
 **If `## Execution Config` is missing** (e.g., user-written plan without Crucible):
 - Log: `⚠️ No execution config in plan — prompting for required values.`
@@ -272,10 +274,10 @@ This prevents command injection if a malicious plan.md contains shell metacharac
   All changes will be committed to a single branch without /split-N suffixes.
 ```
 
-**If split relationship is `independent`** (only applies when multi): Log a warning and proceed with only the first split:
+**If split relationship is `independent`** (only applies when multi): Forge executes split 1 in this invocation. Each remaining split must be executed by invoking Forge separately (independent splits have no dependency ordering, so parallel human-initiated execution is safe). Log and display:
 ```
-⚠️ Independent splits detected — executing split 1 only.
-   Run Forge separately for each remaining split.
+ℹ️ Independent split strategy: executing split 1 of [N]. Invoke Forge separately for each 
+   remaining split — they can run in parallel since splits are independent.
 ```
 
 Once all config is resolved (from plan or fallback), show the execution preview:
@@ -474,6 +476,7 @@ Create `forge-state.md`:
 
 ```markdown
 ---
+slug: <task-slug>  ← derived from task name per § Task Slug Algorithm in ARCHITECTURE.md
 split: 1
 iteration: 1
 hard-cap-iterations: 10
@@ -584,6 +587,10 @@ SPLIT START (put the clay on the wheel)
          Instructions: Implement only what is needed for this file in this split. Do not commit. Do not modify any other file.
        ")
        ```
+
+       **Model-aware dispatch mode**: Gemini-based models (`gemini-*`) fail silently on background dispatch (see ARCHITECTURE.md → Models Used). Apply the correct dispatch mode:
+       - If model is Gemini-based (`gemini-*`): dispatch each code agent with `mode="sync"`, sequentially (one at a time)
+       - For all other models: dispatch code agents with `mode="background"` in parallel as normal
 
        Wait for ALL code agents to complete before continuing. This is a hard synchronization barrier — do NOT proceed to step 3 until every dispatched agent has returned (success or failure). Verify each agent's status explicitly.
 
@@ -723,6 +730,7 @@ SPLIT START (put the clay on the wheel)
          Complexity: [from forge-state.md — small or large]
          Record: iteration number, files changed, verifier verdicts, decision made
          Output: append one log entry to forge-task-log.md
+         Write all log files to $FOUNDRY_DIR/ (value: <actual $FOUNDRY_DIR path>)
        ")
        ```
 
@@ -880,7 +888,7 @@ SPLIT START (put the clay on the wheel)
        Example: branch `forge/my-task/split-1` → tag `forge-checkpoint--forge-my-task--split-1`
        Example: single branch `user/johndoe/fix-bug` → tag `forge-checkpoint--user-johndoe-fix-bug`
     2. If the split fails after 10 iterations (hard cap), offer:
-       - Revert to checkpoint: `git revert --no-commit <checkpoint-tag>..HEAD && git commit -m "Revert (forge rollback)" && git push origin <branch-name>`
+       - Revert to checkpoint: `git reset --hard <checkpoint-tag>` (reset is preferred over revert because checkpoint tags always mark committed states — there are no uncommitted changes to lose, and reset avoids the failure mode where `git revert --no-commit` chokes on a dirty working tree)
        - Keep partial work and continue to next split
        - Stop and let user intervene
 

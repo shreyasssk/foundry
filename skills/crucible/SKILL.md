@@ -190,7 +190,7 @@ Read the provided plan and check every Forge requirement:
 |---|------------|-------|
 | 1 | Task splits present | Are there named splits with clear goals? |
 | 2 | Splits meaningfully scoped | Is each split independently testable? Not too large (>12 files)? |
-| 3 | Branch name specified | Is there a `## Branch` section with a valid git branch name? |
+| 3 | Branch name specified | Is there a `## Execution Config` section with a valid git branch name? |
 | 4 | File-level breakdown per split | Does every split have a files table with exact paths? |
 | 5 | File actions specified | Does every file have CREATE or MODIFY action? |
 | 6 | File dependencies specified | Are dependencies listed? Are they free of circular references? |
@@ -430,6 +430,7 @@ Write initial `crucible-state.md` to `$FOUNDRY_DIR`:
 ```markdown
 # Crucible State
 Task      : [summary]
+Slug      : [task-slug]
 Round     : 1 / 10
 Status    : round-1-complete
 Models    : [opus, codex, gemini]
@@ -439,7 +440,7 @@ Generate  : [plan-only | plan-and-design]
 ## Round History
 | Round | Opus | Codex | Gemini | Converged |
 |-------|------|-------|--------|-----------|
-| 1     | done | done  | done   | N/A       |
+| 1     | done | done  | done   | pending   |
 ```
 
 ---
