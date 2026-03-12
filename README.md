@@ -82,7 +82,8 @@ Forge will:
 2. Read branch config from the plan (set by Crucible)
 3. Write code file-by-file using dedicated code agents
 4. Verify every iteration against the plan (and design/architecture for large tasks)
-5. Commit, push, and run a final adversarial code review
+5. Run adversarial deep review and pass the build gate
+6. Commit and push
 
 ---
 

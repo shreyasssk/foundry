@@ -34,7 +34,7 @@ Architecture Doc: [skip | required]
 Base Branch: [base branch name — e.g., main, master, develop, build/main/latest]
 Branch Prefix: [full prefix pattern — e.g., user/johndoe/add-auth, feature/add-auth, forge/add-auth]
 Split Strategy: [single | multi]
-Split Relationship: [chained | independent]  ← REQUIRED if Split Strategy is multi; OMIT if single
+Split Relationship: [chained | independent | N/A]  ← REQUIRED if Split Strategy is multi; set to N/A if single
 
 ## Overview
 [2-4 sentences: what this task does, the technical approach, and scope boundaries]
@@ -102,7 +102,7 @@ Split Relationship: [chained | independent]  ← REQUIRED if Split Strategy is m
 - Copy the values (`Base Branch`, `Branch Prefix`, `Split Strategy`, `Split Relationship`) exactly from the context packet
 - `Branch Prefix` is the branch name — if multi-split, Forge appends `/split-N` automatically; if single, it's used as-is
 - `Split Strategy` must be either `single` or `multi`
-- `Split Relationship` must be either `chained` or `independent` — only required if `Split Strategy` is `multi`
+- `Split Relationship` must be `chained` or `independent` when `Split Strategy` is `multi`; set to `N/A` when `Split Strategy` is `single`
 - When `Split Strategy` is `single`, the plan should have exactly 1 split in `## Splits`
 
 ## Cross-Review Rules (Rounds 2+)

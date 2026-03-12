@@ -333,12 +333,14 @@ Derive the slug from the **task name** (same source as Crucible) — extract fro
 ```powershell
 # PowerShell — derive slug from task name (must match Crucible's algorithm)
 $slug = ($taskName -replace '[^a-zA-Z0-9_-]', '-' -replace '-+', '-').ToLower().Trim('-')
+$slug = $slug.Substring(0, [Math]::Min($slug.Length, 50)).TrimEnd('-')
 $FOUNDRY_DIR = Join-Path $HOME ".copilot" "foundry" $slug
 New-Item -ItemType Directory -Path $FOUNDRY_DIR -Force | Out-Null
 ```
 ```bash
 # Bash — derive slug from task name (must match Crucible's algorithm)
 slug=$(echo "$taskName" | sed 's/[^a-zA-Z0-9_-]/-/g; s/-\{2,\}/-/g; s/^-//; s/-$//' | tr '[:upper:]' '[:lower:]')
+slug="${slug:0:50}"; slug="${slug%-}"
 FOUNDRY_DIR="$HOME/.copilot/foundry/$slug"
 mkdir -p "$FOUNDRY_DIR"
 ```
@@ -490,7 +492,7 @@ task-branch: <branch-prefix from plan's ## Execution Config>
 base-branch: <base-branch from plan's ## Execution Config>
 current-branch: <task-branch>              ← if single
                 <task-branch>/split-1      ← if multi
-chained: <true|false from plan's ## Execution Config → Split Relationship>
+chained: <true|false from plan's ## Execution Config → Split Relationship>  # omit or set false for single-branch
 ---
 
 ## Dependency Graph
@@ -544,6 +546,9 @@ Update `forge-state.md` after every step:
 > The loop runs **per split** — each split is an independent turn on the pottery wheel.
 > If something isn't right, it goes back on the wheel. When all verifiers approve,
 > the clay is fired (committed). Then the next split goes on the wheel.
+>
+> Iterations within a split are **sequential** — each iteration completes (code → verify → log)
+> before the next begins. Do not start iteration N+1 until iteration N's Scribe entry is written.
 >
 > In **single-branch mode**, the loop runs exactly once — there is one "split" containing all files.
 

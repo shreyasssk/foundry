@@ -72,7 +72,7 @@ Forge execution config (so Forge can run without prompting):
 7. Split relationship — (ONLY if split-strategy is MULTI)
                         Are splits chained (each builds on previous) or independent?
                         (default: chained)
-                        ⚠️ SKIP this question if split-strategy is single — default to chained.
+                        ⚠️ SKIP this question if split-strategy is single — set to N/A.
 ```
 
 **All applicable items must be collected before proceeding.** Items #5-6 are always required. Item #7 is only required when split-strategy is `multi`. Prompt explicitly for anything missing — Forge will not ask again.
@@ -174,7 +174,7 @@ Record the decision:
 
 Store in `crucible-state.md` as `split-strategy: single|multi`.
 
-**Important:** If the user picks SINGLE, the execution config questions about split relationship (#7) become irrelevant — skip asking about chained vs independent and default to `Split Relationship: chained`.
+**Important:** If the user picks SINGLE, the execution config questions about split relationship (#7) become irrelevant — skip asking about chained vs independent and set `Split Relationship: N/A`.
 
 ---
 
@@ -314,12 +314,16 @@ All Foundry files (Crucible and Forge) live **outside the repo** in a shared dir
 ```powershell
 # PowerShell
 $slug = ($taskName -replace '[^a-zA-Z0-9_-]', '-' -replace '-+', '-').ToLower().Trim('-')
+$slug = $slug.Substring(0, [Math]::Min($slug.Length, 50))
+$slug = $slug.TrimEnd('-')
 $FOUNDRY_DIR = Join-Path $HOME ".copilot" "foundry" $slug
 New-Item -ItemType Directory -Path $FOUNDRY_DIR -Force | Out-Null
 ```
 ```bash
 # Bash — replace non-safe chars with dashes (matches PowerShell behavior)
 slug=$(echo "$taskName" | sed 's/[^a-zA-Z0-9_-]/-/g; s/-\{2,\}/-/g; s/^-//; s/-$//' | tr '[:upper:]' '[:lower:]')
+slug="${slug:0:50}"
+slug="${slug%-}"
 FOUNDRY_DIR="$HOME/.copilot/foundry/$slug"
 mkdir -p "$FOUNDRY_DIR"
 ```
@@ -379,7 +383,7 @@ The plan.md MUST include a `## Execution Config` section with the user's branch 
 Base Branch: [user's chosen base branch]
 Branch Prefix: [user's chosen prefix pattern]
 Split Strategy: [single | multi]
-Split Relationship: [chained | independent]  ← REQUIRED when Split Strategy is multi; OMIT when single
+Split Relationship: [chained | independent | N/A]  ← REQUIRED when Split Strategy is multi; set to N/A when single
 ```
 
 ---
@@ -390,9 +394,9 @@ Dispatch 3 parallel sub-agents using the task tool:
 
 - **Agent 1**: model `claude-opus-4.6` — `mode="background"`
 - **Agent 2**: model `gpt-5.1-codex-max` — `mode="background"`
-- **Agent 3**: model `gemini-3-pro-preview` — **`mode="sync"` ONLY** (Gemini fails on background dispatch)
+- **Agent 3**: model `gemini-3-pro-preview` — **`mode="sync"` ONLY** (Gemini fails on background dispatch; always use `mode="sync"`, never `mode="background"`)
 
-> ℹ️ Agents 1 and 2 can run in parallel as background agents. Agent 3 (Gemini) MUST be dispatched with `mode="sync"`. A practical pattern: dispatch Opus and Codex as background, then dispatch Gemini synchronously, then collect all results.
+> ℹ️ Agents 1 and 2 can run in parallel as background agents. Agent 3 (Gemini) MUST be dispatched with `mode="sync"` (not `mode="background"`). A practical pattern: dispatch Opus and Codex as background, then dispatch Gemini synchronously, then collect all results.
 
 Each model dispatches agents from the foundry plugin:
 
@@ -436,6 +440,9 @@ Status    : round-1-complete
 Models    : [opus, codex, gemini]
 Complexity: [small | large]
 Generate  : [plan-only | plan-and-design]
+Split-Strategy: [single | multi]
+Base-Branch   : [branch name]
+Branch-Prefix : foundry/
 
 ## Round History
 | Round | Opus | Codex | Gemini | Converged |
@@ -535,7 +542,7 @@ Options:
 4. Abort
 ```
 
-**IMPORTANT for Gemini**: Always dispatch Gemini with `mode="sync"` — it consistently fails on background/async dispatch. Opus and Codex can use background mode.
+**IMPORTANT for Gemini**: Always dispatch Gemini with `mode="sync"` — it consistently fails on `mode="background"` dispatch. Opus and Codex can use background mode.
 
 ---
 
@@ -561,6 +568,7 @@ Run these checks — ALL must pass:
 - [ ] Test strategy per split
 - [ ] No contradictions between splits
 - [ ] Splits are ordered respecting inter-split dependencies
+- [ ] Split dependencies form a valid DAG (no cycles). If a cycle is detected, flag it in the readiness report
 
 If any check fails → dispatch one targeted model round to fix ONLY the failing checks.
 
@@ -665,5 +673,6 @@ Present completion summary:
 7. **Gemini sync mode** — always dispatch Gemini with `mode="sync"`, never background
 8. **User approval before cleanup** — don't delete intermediate files until the user has chosen an option in Phase 6
 9. **State persistence** — write `crucible-state.md` to `$FOUNDRY_DIR` after every round so the process can resume
-10. **Token cost awareness** — in rounds 2+, only pass the PREVIOUS round's outputs (not all historical rounds) to keep context manageable
-11. **Zero repo pollution** — never write any Crucible files to the source repo. Only Forge writes code changes to the repo.
+10. **Delimiter parsing** — when parsing `crucible-state.md` or any coordination file that uses `---` as section delimiters, only count `---` delimiters that appear at column 0 outside of fenced code blocks (``` regions). Delimiters inside code fences are content, not structure.
+11. **Token cost awareness** — in rounds 2+, only pass the PREVIOUS round's outputs (not all historical rounds) to keep context manageable
+12. **Zero repo pollution** — never write any Crucible files to the source repo. Only Forge writes code changes to the repo.
