@@ -115,6 +115,38 @@ The classification is stored in the plan's `## Complexity` section and read by F
 
 ---
 
+## Split Strategy
+
+After complexity assessment, Crucible evaluates whether the task needs multiple split branches or can be done on a single branch:
+
+| Indicator | Single Branch | Multi-Split |
+|-----------|--------------|-------------|
+| Scope | Tightly coupled changes | Distinct phases or layers |
+| Files | ≤ 5 files | > 8 files or independent groups |
+| Dependencies | All files interdependent | Clear dependency ordering |
+| Review | One review pass sufficient | Staged review preferred |
+
+### How It Works
+
+1. **Crucible** analyzes the task and proposes `single` or `multi` — prompts user for confirmation
+2. **Plan** stores the decision in `## Execution Config` as `Split Strategy: single | multi`
+3. **Forge** reads the strategy and adjusts branch creation, push, and summary accordingly
+
+### Single-Branch Mode
+- Branch: `<task-branch>` directly (no `/split-N` suffix)
+- One branch, one eventual PR
+- Plan has exactly 1 split in `## Splits`
+- Skip split relationship question (irrelevant for single-branch)
+- Simpler completion summary with single branch table
+
+### Multi-Split Mode (default)
+- Branch: `<task-branch>/split-N` per split, chained from previous
+- Multiple branches, merge in order
+- Plan has N splits in `## Splits`
+- Split relationship (chained/independent) required
+
+---
+
 ## Safety Features
 
 - **Adaptive convergence** (Crucible) — plain-language convergence checks, never forces premature consensus
@@ -145,7 +177,7 @@ Both Crucible and Forge share one directory per task. Crucible creates it first;
 **Forge files (same directory):**
 | File | Purpose | Persists? |
 |------|---------|-----------|
-| `forge-state.md` | Resume state (split, iteration, branch, complexity) | Deleted on completion |
+| `forge-state.md` | Resume state (split, iteration, branch, complexity, split strategy) | Deleted on completion |
 | `forge-coordination.md` | Consolidated verifier feedback | Deleted on completion |
 | `forge-verifier-*.md` | Individual verifier results | Deleted on completion |
 | `forge-diff-*.patch` | Per-file diffs for verifiers | Deleted on completion |
@@ -159,6 +191,7 @@ Both Crucible and Forge share one directory per task. Crucible creates it first;
 
 ## Version History
 
+- **v1.6.0** — Split strategy assessment: Crucible evaluates whether a task can be done on a single branch or needs multi-split branching. Stores `Split Strategy: single | multi` in plan's `## Execution Config`. Forge reads strategy and adjusts branch creation (no `/split-N` for single), push commands, rebase targets, forge-state template, task log header, completion summary, and user-facing report. Single-branch mode simplifies the flow for small/tightly-coupled tasks. Plan-drafter template updated. Hard rules updated to respect single-branch mode.
 - **v1.5.0** — Headless Forge: branch config (base branch, prefix, split relationship) moved from Forge Phase 5 to Crucible intake. Plan template includes `## Execution Config` section. Forge reads config from plan and runs headless after one "shall I proceed?" confirmation. Fallback prompting only if plan lacks execution config. Plan-drafter and plan-verifier updated for new section. README restructured: user-facing with examples, internals moved to ARCHITECTURE.md.
 - **v1.4.3** — Round 13 doc fixes: README Phase 1.5 aligned with SKILL.md (Phase 1 includes complexity, 1.5 = Validation), Phase 5 preview now complexity-aware for verifier text, scribe dispatch includes complexity field, deep-review fix loop verifier scope clarified, "two decisions" → "three", README Phase 2 arch doc qualified for large tasks, coordination file template covers small-task skip, Crucible context packet complexity instruction references plan-drafter template
 - **v1.4.2** — Round 12 fixes: Forge readiness now blocks on missing ## Complexity section and missing design doc for large tasks; Crucible Phase 5-6 fully complexity-aware (validation/cross-check/output/cleanup/hand-off all conditional on small vs large); Phase 6 design verifier skip path tightened for large tasks

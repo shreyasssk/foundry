@@ -36,7 +36,8 @@ Architecture Doc: [skip | required]
 ## Execution Config
 Base Branch: [base branch name — e.g., main, master, develop, build/main/latest]
 Branch Prefix: [full prefix pattern — e.g., user/johndoe/add-auth, feature/add-auth, forge/add-auth]
-Split Relationship: [chained | independent]
+Split Strategy: [single | multi]
+Split Relationship: [chained | independent]  ← only include if multi
 
 ## Overview
 [2-4 sentences: what this task does, the technical approach, and scope boundaries]
@@ -101,9 +102,11 @@ Split Relationship: [chained | independent]
 ### Execution Config
 - The context packet includes execution config set by the user during Crucible intake
 - **You MUST include the `## Execution Config` section** in your plan.md output — Forge reads this to run headless (no prompts during execution)
-- Copy the values (`Base Branch`, `Branch Prefix`, `Split Relationship`) exactly from the context packet
-- `Branch Prefix` is the prefix before `/split-N` — Forge appends the split suffix automatically
-- `Split Relationship` must be either `chained` or `independent`
+- Copy the values (`Base Branch`, `Branch Prefix`, `Split Strategy`, `Split Relationship`) exactly from the context packet
+- `Branch Prefix` is the branch name — if multi-split, Forge appends `/split-N` automatically; if single, it's used as-is
+- `Split Strategy` must be either `single` or `multi`
+- `Split Relationship` must be either `chained` or `independent` — only required if `Split Strategy` is `multi`
+- When `Split Strategy` is `single`, the plan should have exactly 1 split in `## Splits`
 
 ## Cross-Review Rules (Rounds 2+)
 

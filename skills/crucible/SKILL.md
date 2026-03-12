@@ -64,17 +64,18 @@ Forge execution config (so Forge can run without prompting):
                        (e.g., main, master, develop, build/main/latest)
 6. Branch prefix     — what naming convention for split branches?
                        Common patterns:
-                         a. user/<alias>/<task-name>/split-N
-                         b. feature/<task-name>/split-N
-                         c. forge/<task-name>/split-N
+                         a. user/<alias>/<task-name>
+                         b. feature/<task-name>
+                         c. forge/<task-name>
                          d. Custom prefix
-                       (default: forge/<task-name>/split-N)
-7. Split relationship — if the plan has multiple splits, are they chained
-                        (each builds on the previous) or independent?
+                       (default: forge/<task-name>)
+7. Split relationship — (ONLY if split-strategy is MULTI)
+                        Are splits chained (each builds on previous) or independent?
                         (default: chained)
+                        ⚠️ SKIP this question if split-strategy is single — default to chained.
 ```
 
-**All 7 items must be collected before proceeding.** If the user doesn't provide execution config (#5-7), prompt for them explicitly — Forge will not ask again.
+**All applicable items must be collected before proceeding.** Items #5-6 are always required. Item #7 is only required when split-strategy is `multi`. Prompt explicitly for anything missing — Forge will not ask again.
 
 After user responds:
 
@@ -129,6 +130,47 @@ Record the decision. This sets the `complexity` field in the output plan:
 
 Store in `crucible-state.md` as `complexity: small|large` and `generate-design: true|false`.
 
+### Split Strategy Assessment
+
+After complexity is decided, assess whether the task requires multiple splits or can be completed in a single branch:
+
+**Indicators of SINGLE branch** (no splits needed):
+- SMALL task that touches ≤ 5 files
+- All changes are tightly coupled — no logical separation point
+- No meaningful dependency ordering between files
+- Entire change can be reviewed as one coherent unit
+
+**Indicators of MULTI split** (splits recommended):
+- LARGE task with distinct logical phases
+- Changes span multiple components that can be developed independently
+- Clear dependency ordering (e.g., "data model first, then API, then UI")
+- Total file count > 8 — splitting aids reviewability
+
+Present the recommendation:
+
+```
+## Split Strategy
+
+Based on the scope, this task [can be completed in a single branch / should be split into N parts].
+
+[1-2 sentences explaining why — e.g., "All 3 files are tightly coupled and form a single
+logical change. Splitting would add overhead without improving reviewability."]
+
+Recommendation:
+  ☐ Single branch — all changes in one branch, no split overhead
+  ☐ Multiple splits — [N] splits as outlined above (recommended for larger tasks)
+
+Your choice?
+```
+
+Record the decision:
+- **SINGLE** → `split-strategy: single` in plan.md's `## Execution Config`, plan still has a `## Task Splits` section but with exactly ONE split containing all files
+- **MULTI** → `split-strategy: multi` in plan.md's `## Execution Config`, plan has multiple splits as normal
+
+Store in `crucible-state.md` as `split-strategy: single|multi`.
+
+**Important:** If the user picks SINGLE, the execution config questions about split relationship (#7) become irrelevant — skip asking about chained vs independent and default to `Split Relationship: chained`.
+
 ---
 
 ## Phase 1.5 — Validation Mode (Existing Documents)
@@ -152,7 +194,8 @@ Read the provided plan and check every Forge requirement:
 | 9 | Splits ordered correctly | Do later splits only depend on earlier ones? |
 | 10 | No contradictions between splits | Do splits reference consistent file paths and interfaces? |
 | 11 | Complexity section present | Is there a `## Complexity` section with `Classification: small` or `Classification: large`? If missing, assess the plan's scope and add the section — Forge requires it to determine which verifiers to run. |
-| 12 | Execution config present | Is there a `## Execution Config` section with `Base Branch`, `Branch Prefix`, and `Split Relationship`? If missing, add it from the user's intake answers — Forge requires it to run headless. |
+| 12 | Execution config present | Is there a `## Execution Config` section with `Base Branch`, `Branch Prefix`, `Split Strategy`, and (if multi) `Split Relationship`? If missing, add it from the user's intake answers — Forge requires it to run headless. |
+| 13 | Split strategy consistent | If `Split Strategy: single`, the plan must have exactly ONE split in `## Task Splits` with all files listed. If `Split Strategy: multi`, multiple splits are expected. |
 
 ### Design Doc Validation
 
@@ -328,7 +371,8 @@ The plan.md MUST include a `## Execution Config` section with the user's branch 
 ## Execution Config
 Base Branch: [user's chosen base branch]
 Branch Prefix: [user's chosen prefix pattern]
-Split Relationship: [chained | independent]
+Split Strategy: [single | multi]
+Split Relationship: [chained | independent]  ← only meaningful when Split Strategy is multi
 ```
 
 ---

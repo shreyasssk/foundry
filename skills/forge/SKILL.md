@@ -213,24 +213,32 @@ If **READY**:
 
 ## Phase 5 — Final Confirmation (Headless-Ready)
 
-Forge reads all execution config from the plan — **do not prompt the user for branch, prefix, or split relationship.** These are set by Crucible during planning.
+Forge reads all execution config from the plan — **do not prompt the user for branch, prefix, or split strategy.** These are set by Crucible during planning.
 
 ### Read Execution Config from Plan
 
 Extract from the plan's `## Execution Config` section:
 - `Base Branch` → store as `$BASE_BRANCH`
 - `Branch Prefix` → store as `$BRANCH_PREFIX`
-- `Split Relationship` → store as `$SPLIT_RELATIONSHIP` (chained or independent)
+- `Split Strategy` → store as `$SPLIT_STRATEGY` (single or multi; default: multi)
+- `Split Relationship` → store as `$SPLIT_RELATIONSHIP` (chained or independent; only meaningful when multi)
 
 **If `## Execution Config` is missing** (e.g., user-written plan without Crucible):
 - Log: `⚠️ No execution config in plan — prompting for required values.`
 - Fall back to prompting:
   - Base branch (required)
   - Branch prefix (default: `forge/<task-name>`)
-  - Split relationship (default: chained)
+  - Split strategy (default: multi)
+  - Split relationship — only ask if split strategy is multi (default: chained)
 - This is the ONLY scenario where Forge prompts for these values.
 
-**If split relationship is `independent`**: Log a warning and proceed with only the first split:
+**If split strategy is `single`**: Log and adapt:
+```
+ℹ️ Single-branch mode — detected from Crucible plan (split-strategy: single).
+  All changes will be committed to a single branch without /split-N suffixes.
+```
+
+**If split relationship is `independent`** (only applies when multi): Log a warning and proceed with only the first split:
 ```
 ⚠️ Independent splits detected — executing split 1 only.
    Run Forge separately for each remaining split.
@@ -242,13 +250,14 @@ Once all config is resolved (from plan or fallback), show the execution preview:
 ## Ready to Forge
 
 Base     : [base branch]
-Branch   : [branch prefix]/split-1..N
-Splits   : [N splits — list them with their file counts]
-Chaining : [chained / independent]
+Branch   : [branch prefix]                          ← if single
+           [branch prefix]/split-1..N               ← if multi
+Splits   : [1 (single-branch mode) | N splits]
+Chaining : [single-branch / chained / independent]
 Complexity: [small / large]
 Strategy : One code agent per file, parallel within dependency constraints
            Verifiers (plan every iteration; architecture + design at split completion [large tasks] or SKIPPED [small tasks])
-           Deep review + build gate per split (after verifiers approve, before commit)
+           Deep review + build gate [per split (multi) | once (single)] (after verifiers approve, before commit)
            Scribe maintains task log at [project folder path]
 
 Shall I proceed?
@@ -327,13 +336,45 @@ For **small tasks**, skip creating `forge-verifier-arch.md`, `forge-verifier-des
 Task: [task description]
 Task Branch: [task-branch]
 Complexity: [small | large]
+Split Strategy: [single | multi]
 Started: [ISO timestamp]
 Splits: [N]
-Branching: per-split (<task-branch>/split-1, split-2, ...)
+Branching: single branch (<task-branch>)              ← if single
+           per-split (<task-branch>/split-1, split-2, ...) ← if multi
 ---
 ```
 
-#### 5. Checkout or Create Branch (per-split branching)
+#### 5. Checkout or Create Branch
+
+Branch strategy depends on `$SPLIT_STRATEGY` from the plan's `## Execution Config`:
+
+##### Single-Branch Mode (`$SPLIT_STRATEGY == "single"`)
+
+All changes go on one branch — no `/split-N` suffixes. The branch name IS the task branch prefix directly.
+
+```
+ℹ️ Single-branch mode — creating branch: <task-branch>
+```
+
+```powershell
+# PowerShell — single branch, resume-safe
+$taskBranch = "$BRANCH_PREFIX"
+git checkout $taskBranch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git checkout -b $taskBranch "origin/$taskBranch" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        git checkout -b $taskBranch "origin/$BASE_BRANCH"
+    }
+}
+```
+```bash
+# Bash — single branch, resume-safe
+git checkout $BRANCH_PREFIX 2>/dev/null \
+  || git checkout -b $BRANCH_PREFIX origin/$BRANCH_PREFIX 2>/dev/null \
+  || git checkout -b $BRANCH_PREFIX origin/$BASE_BRANCH
+```
+
+##### Multi-Split Mode (`$SPLIT_STRATEGY == "multi"`)
 
 Each task split gets its own branch, chained from the previous split's branch. This keeps all splits under the same root task while allowing independent review per split.
 
@@ -391,7 +432,7 @@ git checkout <task-branch>/split-N 2>/dev/null \
   || git checkout -b <task-branch>/split-N origin/<task-branch>/split-<N-1>
 ```
 
-Store the current split branch name in `forge-state.md` under `current-branch`.
+Store the current branch name in `forge-state.md` under `current-branch`.
 
 #### 6. Initialize State File
 
@@ -407,9 +448,11 @@ hard-cap-deep-review: 5
 status: running
 phase: execution
 complexity: <small|large>  ← read from plan.md's ## Complexity → Classification field
+split-strategy: <single|multi>  ← read from plan.md's ## Execution Config → Split Strategy field
 task-branch: <branch-prefix from plan's ## Execution Config>
 base-branch: <base-branch from plan's ## Execution Config>
-current-branch: <task-branch>/split-1
+current-branch: <task-branch>              ← if single
+                <task-branch>/split-1      ← if multi
 chained: <true|false from plan's ## Execution Config → Split Relationship>
 ---
 
@@ -461,19 +504,27 @@ Update `forge-state.md` after every step:
 > The loop runs **per split** — each split is an independent turn on the pottery wheel.
 > If something isn't right, it goes back on the wheel. When all verifiers approve,
 > the clay is fired (committed). Then the next split goes on the wheel.
+>
+> In **single-branch mode**, the loop runs exactly once — there is one "split" containing all files.
 
-Repeat for each split in order:
+**Single-branch mode:** If `split-strategy: single` in forge-state.md, the RALPH loop runs for one iteration of the outer loop (one "split" containing all files). No split branching ceremony, no split-N suffixes. The branch was already created in setup. Log at the start:
+```
+ℹ️ Single-branch mode — processing all files as one unit on branch: <task-branch>
+```
+
+**Multi-split mode:** Repeat for each split in order:
 
 **Important:** If the user chose "independent" splits in Phase 5, only ONE split should be executing in this Forge session. If multiple splits somehow reached Phase 6 with `chained: false` in forge-state.md, STOP and remind the user that independent splits require separate Forge executions.
 
 ```
 SPLIT START (put the clay on the wheel)
   Create split branch:
-    If split 1 → already on <task-branch>/split-1 from setup
-    If split N > 1 (full fallback chain — check existing first, then create):
+    If single-branch mode → already on <task-branch> from setup, skip branch creation
+    If multi + split 1 → already on <task-branch>/split-1 from setup
+    If multi + split N > 1 (full fallback chain — check existing first, then create):
       Bash: git checkout <split-N> || git checkout -b <split-N> origin/<split-N> || git checkout -b <split-N> <split-N-1> || git checkout -b <split-N> origin/<split-N-1>
       PowerShell: same order — local → origin/self → local-parent → origin/parent
-  Update forge-state.md: current-branch = <task-branch>/split-N
+  Update forge-state.md: current-branch = <task-branch> (single) or <task-branch>/split-N (multi)
   Read plan split definition from disk
   Build dependency graph: file → dependencies[]
   Reset agent status map and iteration count
@@ -745,12 +796,17 @@ SPLIT START (put the clay on the wheel)
        git fetch origin
        ```
 
-       For **split 1** — rebase against the user-specified base branch:
+       For **single-branch mode** — rebase against the base branch:
        ```bash
        git rebase origin/$BASE_BRANCH
        ```
 
-       For **split N > 1** — rebase against the previous split's branch:
+       For **multi-split, split 1** — rebase against the user-specified base branch:
+       ```bash
+       git rebase origin/$BASE_BRANCH
+       ```
+
+       For **multi-split, split N > 1** — rebase against the previous split's branch:
        ```bash
        git rebase origin/<task-branch>/split-<N-1>
        ```
@@ -767,8 +823,13 @@ SPLIT START (put the clay on the wheel)
        - Is concise and meaningful
        - Follows the host environment's commit trailer policy. If the environment requires `Co-authored-by` or other trailers, include them. If no policy exists, omit agent signatures.
 
-       Commit and push to the current split branch:
+       Commit and push to the current branch:
        ```bash
+       # Single-branch mode:
+       git commit -m "<meaningful message>"
+       git push origin <task-branch>
+
+       # Multi-split mode:
        git commit -m "<meaningful message>"
        git push origin <task-branch>/split-N
        ```
@@ -777,10 +838,12 @@ SPLIT START (put the clay on the wheel)
 
     **Git checkpoint**: Before starting each split's execution:
     1. Create a checkpoint tag using a slugified branch name (replace `/` with `-`) to prevent git ref path conflicts:
-       `git tag forge-checkpoint--<task-branch-slugified>--split-N`
+       - Single: `git tag forge-checkpoint--<task-branch-slugified>`
+       - Multi: `git tag forge-checkpoint--<task-branch-slugified>--split-N`
        Example: branch `forge/my-task/split-1` → tag `forge-checkpoint--forge-my-task--split-1`
+       Example: single branch `user/johndoe/fix-bug` → tag `forge-checkpoint--user-johndoe-fix-bug`
     2. If the split fails after 10 iterations (hard cap), offer:
-       - Revert to checkpoint: `git revert --no-commit forge-checkpoint--<task-branch-slugified>--split-N..HEAD && git commit -m "Revert split N (forge rollback)" && git push origin <branch-name>`
+       - Revert to checkpoint: `git revert --no-commit <checkpoint-tag>..HEAD && git commit -m "Revert (forge rollback)" && git push origin <branch-name>`
        - Keep partial work and continue to next split
        - Stop and let user intervene
 
@@ -837,6 +900,7 @@ After all splits are done (each split has passed verifiers, deep review, and bui
    ## All Splits Complete
    Finished  : [ISO timestamp]
    Total time: [duration]
+   Strategy  : [single | multi]
    Splits    : [N completed / N total]
    Commits   : [N]
 
@@ -856,6 +920,7 @@ All splits are complete. Each split has been deep-reviewed, build-verified, comm
 
 Write execution summary to `forge-summary.md`:
 
+**Single-branch mode:**
    ```markdown
    # Forge Execution Summary
 
@@ -864,6 +929,52 @@ Write execution summary to `forge-summary.md`:
 
    ## Complexity
    [small | large]
+
+   ## Split Strategy
+   single — all changes on one branch
+
+   ## Branch
+   | Branch | Commits | Status |
+   |--------|---------|--------|
+   | <task-branch> | [N] | ✅ Complete |
+
+   ## Base Branch
+   [base branch name]
+
+   ## Deep Review
+   Rounds: [N]
+   Result: All perspectives satisfied
+
+   ## Build Gate
+   Result: [PASSED / FAILED + details]
+
+   ## Files Changed
+   [total files]
+
+   ## Task Log
+   See `forge-task-log.md` in the Forge working directory for iteration-by-iteration details.
+
+   ## Working Directory
+   [full $FOUNDRY_DIR path]
+
+   ## Next Steps
+   1. Review the code on the branch
+   2. Create a PR from `<task-branch>` → `<base-branch>`
+   3. Delete the branch after merge
+   ```
+
+**Multi-split mode:**
+   ```markdown
+   # Forge Execution Summary
+
+   ## Task
+   [task title from plan]
+
+   ## Complexity
+   [small | large]
+
+   ## Split Strategy
+   multi — [N] splits across separate branches
 
    ## Branches
    | Split | Branch | Commits | Status |
@@ -901,6 +1012,19 @@ Write execution summary to `forge-summary.md`:
    ```
 
 3. Report to user (brief — details are in the summary file):
+
+   **Single-branch:**
+   ```
+   ✅ Forge complete.
+
+   Summary  : [$FOUNDRY_DIR/forge-summary.md]
+   Branch   : <task-branch>
+   Log      : [$FOUNDRY_DIR/forge-task-log.md]
+
+   Create a PR from <task-branch> → <base-branch> when ready.
+   ```
+
+   **Multi-split:**
    ```
    ✅ Forge complete.
 
@@ -973,7 +1097,7 @@ Do not merge. Hand off to the user.
 - Always read base branch from the plan's `## Execution Config` section — never auto-detect or hardcode main/master. If execution config is missing, fall back to prompting the user once.
 - Read split chaining mode from the plan's `## Execution Config` section; only prompt if the section is missing — independent splits should be separate Forge executions.
 - Always dispatch agents explicitly using task(agent_type='foundry/<agent-name>') — never use vague instructions.
-- Each split gets its own branch (<task-branch>/split-N), chained from the previous split. Never put all splits on one branch.
+- Each split gets its own branch (<task-branch>/split-N), chained from the previous split — UNLESS `split-strategy` is `single`, in which case use `<task-branch>` directly without `/split-N` suffix.
 - Read branch naming preference/prefix from the plan's `## Execution Config` section; only prompt if the section is missing — never duplicate the prompt in Phase 6.
 - Always check for an existing branch (local → remote) BEFORE creating a new one from a parent — this prevents resume divergence.
 - When creating split-N branches, always include `origin/<task-branch>/split-<N-1>` as a final fallback parent for fresh-environment resume.
