@@ -72,7 +72,11 @@ Forge execution config (so Forge can run without prompting):
 7. Split relationship — (ONLY if split-strategy is MULTI)
                         Are splits chained (each builds on previous) or independent?
                         (default: chained)
+                        • chained: each split branches from the previous split's branch
+                        • independent: each split branches from the BASE branch (not from prior splits), enabling clean parallel merges
                         ⚠️ SKIP this question if split-strategy is single — set to N/A.
+
+**Note:** Independent splits execute sequentially. Each split branches from the base branch (not the prior split), enabling independent merges. True concurrent execution is a future enhancement.
 ```
 
 **All applicable items must be collected before proceeding.** Items #5-6 are always required. Item #7 is only required when split-strategy is `multi`. Prompt explicitly for anything missing — Forge will not ask again.
@@ -119,7 +123,7 @@ with no new interfaces or API changes."]
 
 Recommendation:
   ☐ Skip design doc — proceed with plan only (faster, less overhead)
-  ☐ Generate design doc alongside plan (recommended for complex tasks)
+  ☐ Dispatch design-drafter agent alongside plan (recommended for complex tasks)
 
 Your choice?
 ```
@@ -169,7 +173,7 @@ Your choice?
 ```
 
 Record the decision:
-- **SINGLE** → `split-strategy: single` in plan.md's `## Execution Config`, plan still has a `## Task Splits` section but with exactly ONE split containing all files
+- **SINGLE** → `split-strategy: single` in plan.md's `## Execution Config`, plan still has a `## Splits` section but with exactly ONE split containing all files
 - **MULTI** → `split-strategy: multi` in plan.md's `## Execution Config`, plan has multiple splits as normal
 
 Store in `crucible-state.md` as `split-strategy: single|multi`.
@@ -200,7 +204,7 @@ Read the provided plan and check every Forge requirement:
 | 10 | No contradictions between splits | Do splits reference consistent file paths and interfaces? |
 | 11 | Complexity section present | Is there a `## Complexity` section with `Classification: small` or `Classification: large`? If missing, assess the plan's scope and add the section — Forge requires it to determine which verifiers to run. |
 | 12 | Execution config present | Is there a `## Execution Config` section with `Base Branch`, `Branch Prefix`, `Split Strategy`, and (if multi) `Split Relationship`? If missing, add it from the user's intake answers — Forge requires it to run headless. |
-| 13 | Split strategy consistent | If `Split Strategy: single`, the plan must have exactly ONE split in `## Task Splits` with all files listed. If `Split Strategy: multi`, multiple splits are expected. |
+| 13 | Split strategy consistent | If `Split Strategy: single`, the plan must have exactly ONE split in `## Splits` with all files listed. If `Split Strategy: multi`, multiple splits are expected. |
 
 ### Design Doc Validation
 
@@ -421,6 +425,7 @@ Collect outputs from all agents (3 plan-drafters + up to 3 design-drafters if co
    ```
    ⚠️ [model] failed (retry + fallback exhausted). Proceeding with 2-model convergence.
    ```
+   With 2 models, convergence requires BOTH models to agree on all structural checks (since ≥2 of 2 is trivially true, explicit unanimous agreement is required).
 4. If 2+ models fail, STOP and ask the user — 1-model output is not a valid convergence.
 
 Store each model's output in `$FOUNDRY_DIR`:
@@ -528,12 +533,21 @@ If structural checks pass but models say not converged → accept convergence (m
 
 5. Update `crucible-state.md` with round results
 
-6. **Hard cap at round 10**: If not converged after 10 rounds, present:
+6. **Hard cap at round 10**: If not converged after 10 rounds, apply the **Divergent Merge Strategy** before presenting options:
+
+   **Divergent Merge Strategy** — when cap is reached without convergence, use this priority:
+   1. If the disagreement is **architectural**, use the Opus/Sonnet output as base.
+   2. If the disagreement is **implementation-focused**, use the Codex output as base.
+   3. For **mixed disagreements**, use the output that satisfies the most structural convergence checks.
+   
+   Always note in the plan header: `convergence: partial (cap-reached)`.
 
 ```
 Crucible has not fully converged after 10 rounds.
 Remaining disagreements:
 [list each specific point where models still disagree]
+
+Divergent merge applied: [which model's output was used as base and why]
 
 Options:
 1. Accept best-effort merged output (recommended)
@@ -673,6 +687,6 @@ Present completion summary:
 7. **Gemini sync mode** — always dispatch Gemini with `mode="sync"`, never background
 8. **User approval before cleanup** — don't delete intermediate files until the user has chosen an option in Phase 6
 9. **State persistence** — write `crucible-state.md` to `$FOUNDRY_DIR` after every round so the process can resume
-10. **Delimiter parsing** — when parsing `crucible-state.md` or any coordination file that uses `---` as section delimiters, only count `---` delimiters that appear at column 0 outside of fenced code blocks (``` regions). Delimiters inside code fences are content, not structure.
+10. **Delimiter parsing** — when parsing `crucible-state.md` or any coordination file that uses `---` as section delimiters, only count `---` delimiters that appear at column 0 outside of fenced code blocks (``` regions). Delimiters inside code fences are content, not structure. Match `^---$` on its own line. Exclude lines inside fenced code blocks (track fence open/close state by counting triple-backtick lines). Ignore `---` inside HTML comments.
 11. **Token cost awareness** — in rounds 2+, only pass the PREVIOUS round's outputs (not all historical rounds) to keep context manageable
 12. **Zero repo pollution** — never write any Crucible files to the source repo. Only Forge writes code changes to the repo.

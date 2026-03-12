@@ -191,7 +191,7 @@ During planning, Crucible collects everything Forge needs so Forge can run headl
 
 ## What Forge Asks You
 
-Forge is designed to be **headless** -- it reads everything from the plan and only prompts once:
+Forge is designed to be **headless** -- it reads everything from the plan and only prompts at key decision points:
 
 | Prompt | When | Purpose |
 |--------|------|---------|

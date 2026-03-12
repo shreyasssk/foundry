@@ -113,7 +113,13 @@ The task slug is derived from the **task name** (the plan's `# ` title or `## Ov
 
 > **Canonical source:** Both Crucible and Forge derive the slug from the task name using this algorithm. The slug is recorded in `crucible-state.md` and `forge-state.md` so downstream consumers never need to re-derive it.
 
-This slug is also used for checkpoint tags (`forge-checkpoint--<slug>-split-N-iter-I`), forge-state references, and the shared working directory.
+This slug is also used for checkpoint tags, forge-state references, and the shared working directory.
+
+**Checkpoint tag format:** `forge-checkpoint--<slug>-split-<N>-iter-<I>` where:
+- `<slug>` — task slug derived above (branch `/` replaced with `-` to avoid git ref conflicts)
+- `<N>` — split number (1-indexed; omitted for single-branch mode)
+- `<I>` — iteration number within the split (1-indexed)
+- Example: `forge-checkpoint--add-oauth2-authentication-split-2-iter-3`
 
 ---
 

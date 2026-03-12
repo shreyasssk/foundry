@@ -54,6 +54,7 @@ Split Relationship: [chained | independent | N/A]  ← REQUIRED if Split Strateg
 - [ ] Specific, testable criterion 1
 - [ ] Specific, testable criterion 2
 **Test Strategy**: [Concrete approach — unit tests, integration tests, manual verification steps]
+**Test files**: [List test files in THIS split that cover this split's code. Tests must be co-located in the same split as the code they test — the plan-verifier checks this.]
 
 ### Split 2 — [Descriptive Name]
 ... (continue for all splits)
@@ -74,6 +75,7 @@ Split Relationship: [chained | independent | N/A]  ← REQUIRED if Split Strateg
 - Split granularity: aim for 3-8 files per split. If a split has more than 12 files, consider breaking it into smaller splits
 - Every split needs a clear goal statement that a code agent can understand in isolation
 - **Tests belong with their code** — if a split's changes need tests, include the test files IN THAT SPLIT. Never create a separate "tests-only" split. Each split should be self-contained: code + its tests together
+- Plan MUST have at least 1 split in the `## Splits` section. If split count is 0, flag as **BLOCKING**
 
 ### File Breakdown
 - Use **exact file paths** relative to the project root — never "src/some-module" without the actual filename

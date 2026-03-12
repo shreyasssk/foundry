@@ -256,7 +256,9 @@ Before using any execution config values, validate them against safe patterns:
 ```
 Validation rules:
   Base Branch    : must match ^[\w\-\/\.]+$  (alphanumeric, hyphens, slashes, dots only)
+                   AND must NOT contain ".." (prevents path traversal)
   Branch Prefix  : must match ^[\w\-\/\.]+$  (same pattern)
+                   AND must NOT contain ".." (prevents path traversal)
   Split Strategy : must be exactly "single" or "multi"
   Split Relationship : must be exactly "chained" or "independent"
 
@@ -323,6 +325,13 @@ git ls-remote --exit-code origin
 ```
 
 If any preflight check fails, do NOT proceed. Report the failure and wait for the user.
+
+**Multi + Independent split guard:** If `split-strategy: multi` and `chained: false` (independent) in forge-state.md, verify that no other split is currently in-progress. Check `forge-state.md → current-split-status`. If another split shows status `in-progress`, STOP and tell the user:
+```
+⚠️ Independent splits must run one at a time. Split <N> is still in-progress.
+    Complete or abort split <N> before starting a new one.
+```
+This prevents concurrent modification of forge-state.md and forge-coordination.md. (Does NOT apply to `split-strategy: single` or chained multi-split.)
 
 #### 2. Foundry Working Directory
 
@@ -414,7 +423,10 @@ git checkout $BRANCH_PREFIX 2>/dev/null \
 
 ##### Multi-Split Mode (`$SPLIT_STRATEGY == "multi"`)
 
-Each task split gets its own branch, chained from the previous split's branch. This keeps all splits under the same root task while allowing independent review per split.
+Each task split gets its own branch under the same root task, allowing independent review per split. The **source branch** for each split depends on the split relationship:
+
+- **Chained** (`$SPLIT_RELATIONSHIP == "chained"`): Split N branches from split N-1 (builds on previous work).
+- **Independent** (`$SPLIT_RELATIONSHIP == "independent"`): Every split branches from `$BASE_BRANCH` directly (no inter-split dependency).
 
 Use the branch prefix and base branch from the plan's `## Execution Config` section (read in Phase 5). The split suffix `/split-N` is always appended automatically. `$BASE_BRANCH` and `$BRANCH_PREFIX` come from the plan.
 
@@ -422,11 +434,13 @@ Use the branch prefix and base branch from the plan's `## Execution Config` sect
 
 **Important:** The task branch name (`<task-branch>`) must NOT be an existing branch name. Use a path-style name like `user/<alias>/<task-name>` or `feature/<task-name>` — this ensures `<task-branch>/split-N` won't collide with existing refs. If `<task-branch>` exists as a branch, prefix it: `forge/<task-branch>`.
 
+> **Note:** Independent splits execute sequentially (one at a time) despite being logically independent. Each split branches from the base branch rather than the prior split, enabling clean parallel merges. True concurrent execution is a future enhancement.
+
 ```bash
 git fetch origin
 ```
 
-**Split 1** — branch from the user-specified base branch (prefer existing if resuming):
+**Split 1** — always branches from the user-specified base branch (prefer existing if resuming):
 ```powershell
 # PowerShell — check for existing branch first (resume-safe), then create fresh
 $splitBranch = "<task-branch>/split-1"
@@ -446,9 +460,9 @@ git checkout <task-branch>/split-1 2>/dev/null \
   || git checkout -b <task-branch>/split-1 origin/$BASE_BRANCH
 ```
 
-**Split N (N > 1)** — branch from the previous split (with full fallback chain):
+**Split N (N > 1), Chained** (`$SPLIT_RELATIONSHIP == "chained"`) — branch from the previous split (with full fallback chain):
 ```powershell
-# PowerShell — full fallback chain for resume safety
+# PowerShell — chained: full fallback chain for resume safety
 $splitBranch = "<task-branch>/split-N"
 $parentBranch = "<task-branch>/split-<N-1>"
 git checkout $splitBranch 2>$null
@@ -463,11 +477,31 @@ if ($LASTEXITCODE -ne 0) {
 }
 ```
 ```bash
-# Bash — full fallback chain for resume safety
+# Bash — chained: full fallback chain for resume safety
 git checkout <task-branch>/split-N 2>/dev/null \
   || git checkout -b <task-branch>/split-N origin/<task-branch>/split-N 2>/dev/null \
   || git checkout -b <task-branch>/split-N <task-branch>/split-<N-1> 2>/dev/null \
   || git checkout -b <task-branch>/split-N origin/<task-branch>/split-<N-1>
+```
+
+**Split N (N > 1), Independent** (`$SPLIT_RELATIONSHIP == "independent"`) — branch from the BASE branch, not from prior splits:
+```powershell
+# PowerShell — independent: branch from base, not prior split
+$splitBranch = "<task-branch>/split-N"
+git checkout $splitBranch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git checkout -b $splitBranch "origin/$splitBranch" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        # Independent — always fork from base branch, never from prior split
+        git checkout -b $splitBranch "origin/$BASE_BRANCH"
+    }
+}
+```
+```bash
+# Bash — independent: branch from base, not prior split
+git checkout <task-branch>/split-N 2>/dev/null \
+  || git checkout -b <task-branch>/split-N origin/<task-branch>/split-N 2>/dev/null \
+  || git checkout -b <task-branch>/split-N origin/$BASE_BRANCH
 ```
 
 Store the current branch name in `forge-state.md` under `current-branch`.
@@ -609,6 +643,7 @@ SPLIT START (put the clay on the wheel)
 
     4. CHECK DEPENDENCY GRAPH PROGRESS
        Mark completed files as done in agent status map.
+       **DAG re-validation:** Before marking a split complete, re-validate the dependency graph against the actual code changes. If code agents introduced new imports or cross-file references that create a dependency cycle, STOP the split and report the cycle to the user via forge-coordination.md. Do not proceed to verifiers until the cycle is resolved.
        If unblocked files remain → go back to step 2 (next dependency round).
        If all files in split are done or skipped → proceed to step 5.
 
@@ -645,7 +680,13 @@ SPLIT START (put the clay on the wheel)
 
        - **Design Verifier** → runs only at SPLIT COMPLETION (all files done), **LARGE tasks only**
          If `complexity: small` in forge-state.md, skip entirely. Log: `⚡ Design verifier skipped — small task (per Crucible complexity assessment)`
-         If no design doc was provided AND complexity is large, this is a **hard stop** — a large task MUST have a design doc for verification. Log: `❌ FATAL: Design doc missing for large task — aborting execution. Re-run Crucible to generate the design doc, then invoke Forge again.` and STOP execution immediately. Do NOT continue with remaining splits or deep review.
+         If no design doc was provided AND complexity is large, this is a **hard stop** — a large task MUST have a design doc for verification. Log: `❌ FATAL: Design doc missing for large task — aborting execution. Re-run Crucible to generate the design doc, then invoke Forge again.` Set `forge-state.md → status: failed-design-doc-required`. Write failure reason to Failure Log section of `forge-task-log.md`. Exit the RALPH loop immediately — do NOT continue with remaining splits or deep review. Present error summary to user:
+         ```
+         ❌ Forge stopped — design doc required for large task.
+           Status   : failed-design-doc-required (saved to forge-state.md)
+           Action   : Re-run Crucible to generate a design doc, then invoke Forge again.
+           State    : forge-state.md preserved for resume after design doc is provided.
+         ```
          If no design doc was provided AND complexity is small, this verifier was already skipped above.
          ```
          task(agent_type="foundry/design-verifier", prompt="
@@ -1087,6 +1128,8 @@ Write execution summary to `forge-summary.md`:
 
 4. Auto-cleanup (no prompts):
 
+   **Coordination file cleanup:** Before deleting working files, archive `forge-coordination.md` entries. If the file exists, keep only the last 2 iteration sections (by `---` delimiters) in the active file. Move older sections to `forge-coordination-archive.md` in `$FOUNDRY_DIR`. This preserves recent context for debugging while preventing unbounded growth.
+
    Delete all forge working files in `$FOUNDRY_DIR` except outputs (`forge-summary.md` and `forge-task-log.md`):
 
    ```powershell
@@ -1149,7 +1192,7 @@ Do not merge. Hand off to the user.
 - Always read base branch from the plan's `## Execution Config` section — never auto-detect or hardcode main/master. If execution config is missing, fall back to prompting the user once.
 - Read split chaining mode from the plan's `## Execution Config` section; only prompt if the section is missing — independent splits should be separate Forge executions.
 - Always dispatch agents explicitly using task(agent_type='foundry/<agent-name>') — never use vague instructions.
-- Each split gets its own branch (<task-branch>/split-N), chained from the previous split — UNLESS `split-strategy` is `single`, in which case use `<task-branch>` directly without `/split-N` suffix.
+- Each split gets its own branch (<task-branch>/split-N), chained from the previous split OR from the base branch (if independent) — UNLESS `split-strategy` is `single`, in which case use `<task-branch>` directly without `/split-N` suffix.
 - Read branch naming preference/prefix from the plan's `## Execution Config` section; only prompt if the section is missing — never duplicate the prompt in Phase 6.
 - Always check for an existing branch (local → remote) BEFORE creating a new one from a parent — this prevents resume divergence.
 - When creating split-N branches, always include `origin/<task-branch>/split-<N-1>` as a final fallback parent for fresh-environment resume.
