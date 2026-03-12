@@ -40,7 +40,7 @@ jobs:
 
             ## Installation
             ```
-            git clone https://github.com/shshivakumar_microsoft/foundry.git "$HOME\.claude\plugins\local\foundry"
+            /plugin install odsp-microsoft/foundry
             ```
 
             > **Copilot CLI only** — requires multi-model orchestration (Claude + Codex + Gemini).

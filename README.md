@@ -30,20 +30,13 @@ You go from "here's my work item" to "here's a branch with reviewed code" withou
 
 ### Install Foundry
 
-**Option 1 -- Clone from odsp-microsoft (recommended for ODSP team):**
-```powershell
-git clone https://github.com/odsp-microsoft/foundry.git "$HOME\.claude\plugins\local\foundry"
 ```
-
-**Option 2 -- Clone from personal repo:**
-```powershell
-git clone https://github.com/shshivakumar_microsoft/foundry.git "$HOME\.claude\plugins\local\foundry"
+/plugin install odsp-microsoft/foundry
 ```
 
 To update to the latest version:
-```powershell
-cd "$HOME\.claude\plugins\local\foundry"
-git pull
+```
+/plugin update foundry
 ```
 
 Verify it's installed:
@@ -145,34 +138,34 @@ Here's what happens end-to-end when you use both skills together:
 
 ```
 You: "Plan this task: [description]"
-                    │
-            ┌───────▼───────┐
-            │   CRUCIBLE     │
-            │                │
-            │  1. Intake     │  <- You provide task + optional docs
-            │  2. Config     │  <- Base branch, naming, split relationship
-            │  3. Complexity │  <- AI decides: small or large task?
-            │  4. Fleet      │  <- 3 models plan independently
-            │  5. Converge   │  <- Models cross-review until agreement
-            │  6. Output     │  <- plan.md (with execution config) + design-doc.md (if large)
-            └───────┬───────┘
-                    │
-                    ▼
+                    |
+            +-------V-------+
+            |   CRUCIBLE     |
+            |                |
+            |  1. Intake     |  <- You provide task + optional docs
+            |  2. Config     |  <- Base branch, naming, split relationship
+            |  3. Complexity |  <- AI decides: small or large task?
+            |  4. Fleet      |  <- 3 models plan independently
+            |  5. Converge   |  <- Models cross-review until agreement
+            |  6. Output     |  <- plan.md (with execution config) + design-doc.md (if large)
+            +-------+-------+
+                    |
+                    V
 You: "Forge this. Plan is at ./plan.md"
-                    │
-            ┌───────▼───────┐
-            │    FORGE       │
-            │                │
-            │  1. Read plan  │  <- Validates all required fields
-            │  2. Confirm    │  <- Shows preview, you say "go"
-            │  3. Code       │  <- Agent writes each file (headless from here)
-            │  4. Verify     │  <- Plan/design/arch verifiers check it
-            │  5. Iterate    │  <- Fix issues, re-verify (max 10 rounds)
-            │  6. Commit     │  <- Push per split
-            │  7. Build      │  <- Full build gate after all splits
-            │  8. Review     │  <- 3 adversarial reviewers attack the code
-            │  9. Done       │  <- Branch pushed, you create the PR
-            └───────────────┘
+                    |
+            +-------V-------+
+            |    FORGE       |
+            |                |
+            |  1. Read plan  |  <- Validates all required fields
+            |  2. Confirm    |  <- Shows preview, you say "go"
+            |  3. Code       |  <- Agent writes each file (headless from here)
+            |  4. Verify     |  <- Plan/design/arch verifiers check it
+            |  5. Iterate    |  <- Fix issues, re-verify (max 10 rounds)
+            |  6. Commit     |  <- Push per split
+            |  7. Build      |  <- Full build gate after all splits
+            |  8. Review     |  <- 3 adversarial reviewers attack the code
+            |  9. Done       |  <- Branch pushed, you create the PR
+            +---------------+
 ```
 
 ---
@@ -216,8 +209,8 @@ Crucible automatically assesses whether your task is small or large and adjusts 
 | | Small Task | Large Task |
 |---|-----------|------------|
 | **Examples** | Bug fix, config change, simple feature | New API, multi-component refactor |
-| **Plan** | ✅ Generated | ✅ Generated |
-| **Design doc** | ⚡ Skipped | ✅ Generated |
+| **Plan** | Yes | Yes |
+| **Design doc** | Skipped | Yes |
 | **Architecture doc** | Not required | Required |
 | **Verifiers in Forge** | Plan only | Plan + design + architecture |
 | **Typical time** | Faster, less ceremony | Full ceremony |
@@ -256,4 +249,4 @@ For technical details -- phase breakdowns, agent specs, RALPH loop mechanics, sa
 
 ---
 
-**v1.5.0** · [Version History](ARCHITECTURE.md#version-history)
+**v1.5.0** - [Version History](ARCHITECTURE.md#version-history)
