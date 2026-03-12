@@ -252,7 +252,7 @@ Want to go deeper? The [Foundry Wiki](https://github.com/odsp-microsoft/foundry/
 
 ## Acknowledgments
 
-Shoutout to **Touseef Liaqat** ([@tliaqat](https://github.com/tliaqat)) -- the motivation behind this plugin. Everything I've learnt about AI and what's possible with it, I owe to him.
+Shoutout to **Ian De La Garza** ([@iandelagarza](https://github.com/iandelagarza)) and **Touseef Liaqat** ([@tliaqat](https://github.com/tliaqat)) — everything I've learnt about GitHub Copilot and Claude, and how to efficiently use these tools, I owe to them.
 
 ---
 
