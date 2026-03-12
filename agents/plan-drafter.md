@@ -75,6 +75,7 @@ Split Relationship: [chained | independent]
 - Splits must be **ordered** — later splits can depend on earlier ones, never the reverse
 - Split granularity: aim for 3-8 files per split. If a split has more than 12 files, consider breaking it into smaller splits
 - Every split needs a clear goal statement that a code agent can understand in isolation
+- **Tests belong with their code** — if a split's changes need tests, include the test files IN THAT SPLIT. Never create a separate "tests-only" split. Each split should be self-contained: code + its tests together
 
 ### File Breakdown
 - Use **exact file paths** relative to the project root — never "src/some-module" without the actual filename
@@ -146,6 +147,7 @@ Minor wording differences are OK. Structural differences mean NOT converged.
 - ❌ Acceptance criteria that are subjective ("code is clean")
 - ❌ Generic branch names ("feature/update" or "fix/bug")
 - ❌ Monolithic splits with more than 12 files
+- ❌ Separate "tests-only" splits — tests must be in the same split as the code they test
 
 ## Tone
 
