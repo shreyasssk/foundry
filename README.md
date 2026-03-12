@@ -247,6 +247,14 @@ You always get to confirm or override the AI's recommendation.
 
 For technical details -- phase breakdowns, agent specs, RALPH loop mechanics, safety features, and version history -- see [ARCHITECTURE.md](ARCHITECTURE.md).
 
+Want to go deeper? The [Foundry Wiki](https://github.com/odsp-microsoft/foundry/wiki) covers the engineering behind the plugin -- how the RALPH loop works, how 3 AI models converge on a plan (harness engineering), agent specifications, safety and recovery mechanisms, and more.
+
 ---
 
-**v1.5.0** - [Version History](ARCHITECTURE.md#version-history)
+## Acknowledgments
+
+Shoutout to **Touseef Liaqat** ([@tliaqat](https://github.com/tliaqat)) -- the motivation behind this plugin. Everything I've learnt about AI and what's possible with it, I owe to him.
+
+---
+
+**v1.5.1** - [Version History](ARCHITECTURE.md#version-history)
