@@ -650,7 +650,7 @@ SPLIT START (put the clay on the wheel)
 
     7. EVALUATE ITERATION OUTCOME
        All active verifiers APPROVED?
-         YES → proceed to COMMIT AND PUSH
+         YES → proceed to PER-SPLIT DEEP REVIEW (step 8)
          NO  → iteration count < hard cap?
                  YES → clear APPROVED sections in forge-coordination.md,
                         keep ISSUES sections → next iteration
@@ -665,7 +665,73 @@ SPLIT START (put the clay on the wheel)
           - Continue with remaining files — do not block the entire split
           - Present STUCK files to the user at split completion for manual intervention
 
-    8. COMMIT AND PUSH
+    8. PER-SPLIT DEEP REVIEW
+
+       Once all verifiers approve for this split, run deep review BEFORE committing.
+       This catches issues early — before they propagate to the next split.
+
+       Generate the split's diff:
+       ```powershell
+       # PowerShell
+       git diff HEAD | Out-File -Encoding utf8NoBOM "$FOUNDRY_DIR/forge-deep-review-diff.patch"
+       ```
+       ```bash
+       # Bash
+       git diff HEAD > "$FOUNDRY_DIR/forge-deep-review-diff.patch"
+       ```
+
+       **Large diff handling**: If the diff exceeds ~80,000 characters:
+       1. Split into per-file chunks
+       2. Group into batches that fit within context (~80k chars each)
+       3. Dispatch one set of 3 deep-review agents PER BATCH
+       4. Synthesize results across batches
+
+       Dispatch three parallel agents:
+       ```
+       task(agent_type="deep-review/architect", prompt="Review this diff for direction and design soundness:\n\n[diff contents]")
+       task(agent_type="deep-review/advocate", prompt="Defend this implementation — find strengths and justify decisions:\n\n[diff contents]")
+       task(agent_type="deep-review/skeptic", prompt="Attack this code — find flaws, risks, and weaknesses:\n\n[diff contents]")
+       ```
+
+       Wait for all three to complete. Write findings to `forge-coordination.md` under `## Deep Review — Split [N] Round [R]`.
+
+       **Evaluate:**
+       - All three satisfied with no CRITICAL issues? → proceed to BUILD GATE (step 9)
+       - CRITICAL issues found? → address feedback:
+         1. Triage findings, group by file
+         2. Identify conflicts between perspectives — flag and ask user
+         3. Re-enter RALPH loop (step 2) for affected files only
+         4. After fixes, re-run deep review (regenerate diff, dispatch agents)
+         5. Increment `deep-review-round` in `forge-state.md`
+       - Hard cap: 5 deep review rounds per split. If reached, pause and present remaining issues to user.
+
+       Update `forge-state.md`: `deep-review-round` after each round.
+
+    9. PER-SPLIT BUILD GATE
+
+       After deep review passes, run a full project build BEFORE committing.
+
+       Auto-detect build system:
+       ```
+       Detection order:
+       1. If `dev build` is available (CoreXT repo)     → dev build
+       2. If package.json exists with build script       → npm run build
+       3. If *.csproj or *.sln exists                    → dotnet build
+       4. If Makefile exists                             → make
+       5. If Cargo.toml exists                           → cargo build
+       6. If go.mod exists                               → go build ./...
+       7. No build system detected                       → skip with warning
+       ```
+
+       If build **FAILS**:
+       - Write build errors to `forge-coordination.md`
+       - Re-enter RALPH loop (step 2) to fix build errors
+       - After fixes, re-run build (no need to re-run deep review unless files changed significantly)
+       - Repeat until build passes — no cap on build fix attempts (the RALPH iteration cap still applies)
+
+       If build **PASSES** → proceed to COMMIT AND PUSH (step 10)
+
+    10. COMMIT AND PUSH
 
        Stage ONLY the specific files assigned to this split's agents:
        ```bash
@@ -764,7 +830,7 @@ When the 10-iteration hard cap is reached without all verifiers approving — th
 
 ### Completion
 
-After all splits are done:
+After all splits are done (each split has passed verifiers, deep review, and build gate):
 
 1. Scribe writes a final summary to `forge-task-log.md`:
    ```
@@ -778,140 +844,17 @@ After all splits are done:
    [3-6 sentences: what was built, key decisions made during execution, anything flagged or skipped]
    ```
 
-2. Proceed to the Post-Execution Build Gate below. Phase 7 begins only after the build passes.
-
-### Post-Execution Build Gate
-
-After ALL splits are complete and before Deep Review:
-
-The build gate runs on the LAST split's branch (`<task-branch>/split-N`), which contains all changes from all prior splits via chaining.
-
-1. Run FULL project build. Auto-detect from repo:
-   ```
-   Detection order:
-   1. If `dev build` is available (CoreXT repo)     → dev build
-   2. If package.json exists with build script       → npm run build
-   3. If *.csproj or *.sln exists                    → dotnet build
-   4. If Makefile exists                             → make
-   5. If Cargo.toml exists                           → cargo build
-   6. If go.mod exists                               → go build ./...
-   7. No build system detected                       → skip with warning
-   ```
-2. If build **FAILS**:
-   - Write build errors to `forge-coordination.md`
-   - Present to user with options:
-     a. Fix build errors (re-enter RALPH loop for affected files)
-     b. Revert to last good checkpoint
-     c. Stop and fix manually
-3. If build **PASSES** → proceed to Phase 7 (Deep Review)
+2. Proceed directly to Phase 7 (Summary and Cleanup).
 
 ---
 
-## Phase 7 — Deep Review Loop
+## Phase 7 — Summary and Cleanup
 
-All code changes are complete and the build has passed. Deep review runs locally against the branch diff.
+All splits are complete. Each split has been deep-reviewed, build-verified, committed, and pushed.
 
-Update `forge-state.md`: set `phase: deep-review`.
+### Step 1 — Write Execution Summary
 
-### Step 1 — Run Deep Review
-
-Deep review runs locally against the current branch's diff from the base branch (specified by the user in Phase 5, stored as `$BASE_BRANCH`).
-
-Generate the full diff:
-
-```powershell
-# PowerShell
-git diff "origin/$BASE_BRANCH..HEAD" | Out-File -Encoding utf8NoBOM forge-deep-review-diff.patch
-# Fallback for PowerShell 5.1: [IO.File]::WriteAllText("forge-deep-review-diff.patch", (git diff "origin/$BASE_BRANCH..HEAD" | Out-String), [Text.UTF8Encoding]::new($false))
-```
-```bash
-# Bash
-git diff origin/$BASE_BRANCH..HEAD > forge-deep-review-diff.patch
-```
-
-**Large diff handling**: If the diff exceeds ~80,000 characters (roughly half the context window for most models):
-1. Split the diff into per-file chunks: `git diff origin/$BASE_BRANCH..HEAD -- <file>` for each changed file
-2. Group files into batches that fit within context (~80k chars each)
-3. Dispatch one set of 3 deep-review agents PER BATCH (architect/advocate/skeptic)
-4. After all batches complete, dispatch a final synthesis round where each perspective receives a summary of their own per-batch findings and produces a unified verdict
-
-If the diff fits within context, dispatch all three agents with the full diff as below.
-
-Dispatch three parallel agents using the task tool:
-
-```
-task(agent_type="deep-review/architect", prompt="Review this diff for direction and design soundness:\n\n[contents of forge-deep-review-diff.patch]")
-task(agent_type="deep-review/advocate", prompt="Defend this implementation — find strengths and justify decisions:\n\n[contents of forge-deep-review-diff.patch]")
-task(agent_type="deep-review/skeptic", prompt="Attack this code — find flaws, risks, and weaknesses:\n\n[contents of forge-deep-review-diff.patch]")
-```
-
-Wait for all three to complete.
-
-### Step 2 — Evaluate Deep Review Feedback
-
-Write all deep review findings to `forge-coordination.md` under a `## Deep Review — Round [N]` section, attributed by perspective.
-
-Are all three perspectives satisfied with no actionable issues?
-- **YES** → proceed to Step 4 (final sign-off)
-- **NO**  → proceed to Step 3 (address feedback)
-
-### Step 3 — Address Feedback Loop
-
-For each round of deep review feedback:
-
-1. Triage findings from all three perspectives:
-   - Group by file or concern
-   - Identify conflicts between perspectives (e.g. Architect wants X, Skeptic flags X as risky) — flag these explicitly and ask user to decide before proceeding
-
-2. Run the forge execution loop (same as Phase 6) against the feedback:
-   - Treat each grouped concern as a mini-split
-   - One code agent per file affected
-   - Dependency-aware, parallel where possible
-   - Verifiers run per Phase 6 rules (plan always; architecture + design at mini-split completion for large tasks; skipped for small tasks)
-   - Scribe logs each iteration under `## Deep Review Round [N] — Iteration [I]`
-
-3. Commit and push each fix:
-   - **Stage only specific files** (`git add <files>`)
-   - **Fetch and rebase before push**:
-     ```bash
-     git fetch origin
-     ```
-
-     For **single-split tasks** (only split-1) — rebase against the base branch:
-     ```bash
-     git rebase origin/$BASE_BRANCH
-     ```
-
-     For **multi-split tasks** — rebase against the parent of the current (last) split branch:
-     ```bash
-     # If on split-N where N > 1, rebase against the previous split
-     git rebase origin/<task-branch>/split-<N-1>
-     ```
-   - Meaningful commit message referencing the deep review concern addressed
-   - Follow host environment's commit trailer policy
-
-4. Increment `deep-review-round` in `forge-state.md` and update `## Deep Review` last result.
-
-5. Re-run deep review (regenerate diff and dispatch agents) — go back to Step 2.
-
-Hard cap: max 5 deep review rounds. If cap is reached:
-- Pause and present remaining open issues to user
-- Ask how to proceed — do not auto-resolve or mark PR ready
-
-### Step 4 — Final Sign-Off
-
-Once all three deep review perspectives are satisfied:
-
-1. Scribe appends to `forge-task-log.md`:
-   ```
-   ## Deep Review Complete
-   Rounds    : [N]
-   Finished  : [ISO timestamp]
-
-   All perspectives satisfied. Branch ready for user to create PR.
-   ```
-
-2. Write execution summary to `forge-summary.md`:
+Write execution summary to `forge-summary.md`:
 
    ```markdown
    # Forge Execution Summary
@@ -1025,8 +968,8 @@ Do not merge. Hand off to the user.
 - Always flag conflicting feedback between deep review perspectives and ask user before resolving
 - Always cap deep review rounds at 5 — if not satisfied by then, pause and ask user
 - Architecture doc is required for LARGE tasks — if not provided, block execution and ask the user. For SMALL tasks (as classified by Crucible), skip architecture and design doc requirements entirely.
-- Build gate runs once after all splits complete, before deep review — not during the RALPH loop.
-- Deep review runs locally against the branch diff — no PR required.
+- Build gate and deep review run per-split (after verifiers approve, before commit) — not after all splits.
+- Deep review runs locally against the split's uncommitted diff — no PR required.
 - Always read base branch from the plan's `## Execution Config` section — never auto-detect or hardcode main/master. If execution config is missing, fall back to prompting the user once.
 - Always ask the user if splits are chained or independent in Phase 5 — independent splits should be separate Forge executions.
 - Always dispatch agents explicitly using task(agent_type='foundry/<agent-name>') — never use vague instructions.
