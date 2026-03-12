@@ -24,8 +24,8 @@ Before asking for documents, check if a `forge-state.md` already exists in the F
    - Are the split/iteration counters consistent?
    - Is the working tree clean? (`git status --porcelain`)
    - Does `base-branch` exist? If missing (legacy state from pre-v1.3.5), ask the user to provide it before resuming.
-   - Does `complexity` exist? If missing (legacy state from pre-v1.4.0), default to `large`, then immediately check the plan for a `## Complexity` or `Classification:` line — if found (e.g., `Classification: small`), override the default with that value. Log: `⚠️ Pre-v1.4.0 state detected — defaulted to large, then corrected to <actual> from plan.` (or `⚠️ ... assuming large task (full ceremony).` if plan has no classification).
-   - Does `split-strategy` exist? If missing (legacy state from pre-v1.5.0), infer it: read the plan's `## Execution Config → Split Strategy` field; if not found, count the number of splits in the plan — if exactly 1 split, use `single`, otherwise use `multi`. Log: `⚠️ Pre-v1.5.0 state detected — inferred split-strategy=<value> from plan.`
+   - Does `complexity` exist? If missing (legacy state from pre-v1.4.0), check plan for `## Complexity` section first. If plan also lacks it, prompt user: `'No complexity classification found — classify as small or large?'` Only default to `large` as absolute last resort if user is unavailable. Log: `⚠️ Pre-v1.4.0 state detected — resolved complexity to <actual> via [plan | user prompt | large fallback].`
+   - Does `split-strategy` exist? If missing (pre-v1.5.0 state): log `⚠️ Pre-v1.5.0 state detected — cannot reliably infer split-strategy. Defaulting to multi (full ceremony). Override with user input if incorrect.` Default to `multi`.
 3. If valid, present to the user:
    ```
    Found existing Forge state:
@@ -38,7 +38,7 @@ Before asking for documents, check if a `forge-state.md` already exists in the F
 
    Options:
    1. Resume from where we left off
-   2. Start fresh (will archive old state)
+   2. Start fresh (archives old state to `forge-state-archive-<timestamp>.md` in the same directory)
    ```
 4. If the user chooses to resume, skip to the phase indicated in `forge-state.md`.
 5. If state is invalid (branch deleted, inconsistent counters), warn and recommend starting fresh.
@@ -151,7 +151,7 @@ Extract and internalize the following from each document.
 - [ ] Branch name is specified
   - If missing → `[MISSING]` warn, offer to define one yourself or ask user
 - [ ] File-level breakdown exists per split
-  - If missing → `[MISSING]` warn — execution cannot safely spawn per-file agents without this
+  - If missing → `[BLOCKING]` — cannot dispatch per-file code agents without file assignments. Request plan update before proceeding.
 - [ ] File dependencies are specified per split
   - If missing → `[BLOCKING]` Forge cannot safely order code agent execution without dependencies. Offer to auto-derive dependencies by analyzing import/include statements in existing files, or ask the user to specify them.
   - If present → validate DAG is acyclic. Cycles are a `[BLOCKING]` error.
@@ -251,7 +251,9 @@ Extract from the plan's `## Execution Config` section:
 
 ### Validate Execution Config Inputs
 
-Before using any execution config values, validate them against safe patterns:
+Before using any execution config values, validate them against safe patterns.
+
+**Apply this validation to BOTH paths** — values sourced from plan AND values provided by user prompt fallback.
 
 ```
 Validation rules:
@@ -276,10 +278,11 @@ This prevents command injection if a malicious plan.md contains shell metacharac
   All changes will be committed to a single branch without /split-N suffixes.
 ```
 
-**If split relationship is `independent`** (only applies when multi): Forge executes split 1 in this invocation. Each remaining split must be executed by invoking Forge separately (independent splits have no dependency ordering, so parallel human-initiated execution is safe). Log and display:
+**If split relationship is `independent`** (only applies when multi): Forge executes split 1 in this invocation. Each remaining split must be executed by invoking Forge separately. Log and display:
 ```
-ℹ️ Independent split strategy: executing split 1 of [N]. Invoke Forge separately for each 
-   remaining split — they can run in parallel since splits are independent.
+ℹ️ Independent split strategy: executing split 1 of [N]. Independent splits execute sequentially
+   in the current implementation (one split completes before the next begins). Each split branches
+   from the base branch. Parallel execution across separate Forge processes is a future enhancement.
 ```
 
 Once all config is resolved (from plan or fallback), show the execution preview:
@@ -326,7 +329,7 @@ git ls-remote --exit-code origin
 
 If any preflight check fails, do NOT proceed. Report the failure and wait for the user.
 
-**Multi + Independent split guard:** If `split-strategy: multi` and `chained: false` (independent) in forge-state.md, verify that no other split is currently in-progress. Check `forge-state.md → current-split-status`. If another split shows status `in-progress`, STOP and tell the user:
+**Multi + Independent split guard:** If `split-strategy: multi` and `chained: false` (independent) in forge-state.md, verify that no other split is currently in-progress. Check `forge-state.md → current-split-status`. If another split shows status `in-progress`, STOP — independent splits execute sequentially to avoid forge-state.md conflicts. Tell the user:
 ```
 ⚠️ Independent splits must run one at a time. Split <N> is still in-progress.
     Complete or abort split <N> before starting a new one.
@@ -343,6 +346,7 @@ Derive the slug from the **task name** (same source as Crucible) — extract fro
 # PowerShell — derive slug from task name (must match Crucible's algorithm)
 $slug = ($taskName -replace '[^a-zA-Z0-9_-]', '-' -replace '-+', '-').ToLower().Trim('-')
 $slug = $slug.Substring(0, [Math]::Min($slug.Length, 50)).TrimEnd('-')
+# (Full algorithm specification: see § Task Slug Algorithm in ARCHITECTURE.md)
 $FOUNDRY_DIR = Join-Path $HOME ".copilot" "foundry" $slug
 New-Item -ItemType Directory -Path $FOUNDRY_DIR -Force | Out-Null
 ```
@@ -350,6 +354,7 @@ New-Item -ItemType Directory -Path $FOUNDRY_DIR -Force | Out-Null
 # Bash — derive slug from task name (must match Crucible's algorithm)
 slug=$(echo "$taskName" | sed 's/[^a-zA-Z0-9_-]/-/g; s/-\{2,\}/-/g; s/^-//; s/-$//' | tr '[:upper:]' '[:lower:]')
 slug="${slug:0:50}"; slug="${slug%-}"
+# (Full algorithm specification: see § Task Slug Algorithm in ARCHITECTURE.md)
 FOUNDRY_DIR="$HOME/.copilot/foundry/$slug"
 mkdir -p "$FOUNDRY_DIR"
 ```
@@ -544,9 +549,16 @@ chained: <true|false from plan's ## Execution Config → Split Relationship>  # 
 - Architecture: — [or "SKIPPED — small task"]
 - Design      : — [or "SKIPPED — small task"]
 
+## Split Tracking
+- current-split: 1
+- current-split-status: not-started  [not-started | in-progress | complete]
+
 ## Deep Review
 - Round       : 0
 - Last result : —
+
+## Build Gate
+- build-fix-attempts: 0
 
 ## Failure Log
 (none)
@@ -623,13 +635,12 @@ SPLIT START (put the clay on the wheel)
          Split: <split-N description>
          Summaries: [forge-summary-plan.md always; forge-summary-arch.md + forge-summary-design.md only if large task]
          Feedback: [latest section of forge-coordination.md, or 'First iteration — no prior feedback']
+         Working directory: (located at `<actual $FOUNDRY_DIR path>`)
          Instructions: Implement only what is needed for this file in this split. Do not commit. Do not modify any other file.
        ")
        ```
 
-       **Model-aware dispatch mode**: Gemini-based models (`gemini-*`) fail silently on background dispatch (see ARCHITECTURE.md → Models Used). Apply the correct dispatch mode:
-       - If model is Gemini-based (`gemini-*`): dispatch each code agent with `mode="sync"`, sequentially (one at a time)
-       - For all other models: dispatch code agents with `mode="background"` in parallel as normal
+       _(Note: Gemini dispatch constraints apply only to Crucible fleet dispatch, not to code agents — see ARCHITECTURE.md.)_
 
        Wait for ALL code agents to complete before continuing. This is a hard synchronization barrier — do NOT proceed to step 3 until every dispatched agent has returned (success or failure). Verify each agent's status explicitly.
 
@@ -662,7 +673,7 @@ SPLIT START (put the clay on the wheel)
            Per-file diffs: [diffs]
            File list: [files in this split]
            Split description: [split N details]
-           Output file: forge-verifier-plan.md
+           Output file: forge-verifier-plan.md (located at `<actual $FOUNDRY_DIR path>`)
          ")
          ```
 
@@ -674,7 +685,7 @@ SPLIT START (put the clay on the wheel)
            Per-file diffs: [diffs]
            File list: [files in this split]
            Split description: [split N details]
-           Output file: forge-verifier-arch.md
+           Output file: forge-verifier-arch.md (located at `<actual $FOUNDRY_DIR path>`)
          ")
          ```
 
@@ -694,7 +705,7 @@ SPLIT START (put the clay on the wheel)
            Per-file diffs: [diffs]
            File list: [files in this split]
            Split description: [split N details]
-           Output file: forge-verifier-design.md
+           Output file: forge-verifier-design.md (located at `<actual $FOUNDRY_DIR path>`)
          ")
          ```
 
@@ -750,7 +761,7 @@ SPLIT START (put the clay on the wheel)
 
        Code agents read ONLY the latest section (last `---` delimited block). Full history is preserved for debugging and scribe reference.
 
-       If the file exceeds 50 sections (count `---` delimiters), archive older sections to `forge-coordination-archive.md` and keep only the last 10 in the active file.
+       If the file exceeds 50 sections (count `---` delimiters at column 0, outside fenced code blocks — per Crucible Rule 10), archive older sections to `forge-coordination-archive.md` and keep only the last 10 in the active file.
 
     6. SCRIBE (conditional)
 
@@ -810,11 +821,9 @@ SPLIT START (put the clay on the wheel)
        Once all verifiers approve for this split, run deep review BEFORE committing.
        This catches issues early — before they propagate to the next split.
 
-       Generate the split's diff:
+       Generate the split's diff using utf8NoBOM encoding (see § Verifier Diff Generation above for encoding details):
        ```powershell
-       # PowerShell — write deep review diff to $FOUNDRY_DIR
-       # PowerShell 7+: Out-File -Encoding utf8NoBOM
-       # PowerShell 5.1: [IO.File]::WriteAllText($path, (git diff HEAD | Out-String), [Text.UTF8Encoding]::new($false))
+       # PowerShell — write deep review diff to $FOUNDRY_DIR (utf8NoBOM — see verifier diff section)
        git diff HEAD | Out-File -Encoding utf8NoBOM "$FOUNDRY_DIR/forge-deep-review-diff.patch"
        ```
        ```bash
@@ -869,7 +878,7 @@ SPLIT START (put the clay on the wheel)
        - Write build errors to `forge-coordination.md`
        - Re-enter RALPH loop (step 2) to fix build errors
        - After fixes, re-run build (no need to re-run deep review unless files changed significantly)
-       - Repeat until build passes — hard cap of 5 build-fix attempts to prevent infinite loops. If build still fails after 5 attempts, present to user with options (similar to RALPH hard cap menu).
+       - Repeat until build passes — hard cap of 5 build-fix attempts (tracked in forge-state.md → build-fix-attempts) to prevent infinite loops. If build still fails after 5 attempts, present to user with options (similar to RALPH hard cap menu).
 
        If build **PASSES** → proceed to COMMIT AND PUSH (step 10)
 
@@ -1197,7 +1206,7 @@ Do not merge. Hand off to the user.
 - Always check for an existing branch (local → remote) BEFORE creating a new one from a parent — this prevents resume divergence.
 - When creating split-N branches, always include `origin/<task-branch>/split-<N-1>` as a final fallback parent for fresh-environment resume.
 - Always provide both PowerShell and Bash variants for shell commands. Never use bash-only syntax (e.g., `2>/dev/null`) in PowerShell blocks — use `2>$null` or try/catch instead.
-- Always use `Out-File -Encoding utf8NoBOM` (PowerShell 7+) or `[IO.File]::WriteAllText` with `[Text.UTF8Encoding]::new($false)` (PowerShell 5.1) when writing patch/diff files — default `>` produces UTF-16, and `-Encoding UTF8` adds a BOM, both of which break git apply.
+- Generate diff using utf8NoBOM encoding (see § Verifier Diff Generation above for encoding details).
 - Always slugify branch names in checkpoint tags (replace `/` with `-`) to prevent git ref path conflicts with hierarchical branch names.
 - When extending the hard cap, always persist the new value to `hard-cap-iterations` in `forge-state.md` before continuing.
 - When the deep review diff exceeds ~80k characters, chunk it into per-file batches and run parallel deep review agents per batch, then synthesize.

@@ -77,6 +77,8 @@ Once you have a plan, hand it to Forge:
 Forge this. Plan is at ./plan.md, architecture doc is at ./docs/architecture.md
 ```
 
+_(Foundry stores all working files in `~/.copilot/foundry/<task-slug>/`, not in your repository — zero repo pollution)_
+
 Forge will:
 1. Read and validate the plan
 2. Read branch config from the plan (set by Crucible)
@@ -179,7 +181,7 @@ During planning, Crucible collects everything Forge needs so Forge can run headl
 | Prompt | When | Your Options |
 |--------|------|-------------|
 | Task description | Always | Text, file path, URL, or work item ID |
-| Architecture doc | Always (optional) | File path or "none" |
+| Architecture doc | Always (optional for small tasks; required for large tasks — Forge blocks without it) | File path or "none" |
 | Existing plan/design doc | Always (optional) | File path or "none" |
 | Complexity confirmation | After assessment | Agree with AI recommendation or override |
 | Base branch | Always | `main`, `master`, `develop`, `build/main/latest`, etc. |

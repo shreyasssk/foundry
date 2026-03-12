@@ -96,6 +96,8 @@ All agent dispatches use explicit `task(agent_type="foundry/<name>")` calls.
 | GPT Codex | `gpt-5.1-codex-max` | Code-first planning |
 | Gemini Pro | `gemini-3-pro-preview` | Breadth, alternatives (**must use `mode="sync"` — fails on background dispatch**) |
 
+> **Gemini sync constraint:** This constraint applies to **Crucible fleet dispatch only** (when dispatching plan-drafter/design-drafter agents with Gemini). Forge code-agent dispatch is unaffected — code agents use the default model and don't receive a model parameter.
+
 ---
 
 ## Task Slug Algorithm
@@ -175,7 +177,7 @@ After complexity assessment, Crucible evaluates whether the task needs multiple 
 ## Safety Features
 
 - **Adaptive convergence** (Crucible) — plain-language convergence checks, never forces premature consensus
-- **Hard caps** — 10 rounds in Crucible, 10 iterations per split in Forge, 5 rounds of deep review
+- **Hard caps** — 10 rounds in Crucible, 10 iterations per split in Forge, 5 rounds of deep review **per split**
 - **Resume support** — both skills track state and can pick up where they left off
 - **Per-split build gate** (Forge) — full build per split after deep review passes, before commit
 - **Git safety** (Forge) — fetch/rebase before push, specific file staging, user-specified base branch
@@ -216,7 +218,7 @@ Both Crucible and Forge share one directory per task. Crucible creates it first;
 
 ## Version History
 
-- **v1.6.0** — Split strategy assessment: Crucible evaluates whether a task can be done on a single branch or needs multi-split branching. Stores `Split Strategy: single | multi` in plan's `## Execution Config`. Forge reads strategy and adjusts branch creation (no `/split-N` for single), push commands, rebase targets, forge-state template, task log header, completion summary, and user-facing report. Single-branch mode simplifies the flow for small/tightly-coupled tasks. Plan-drafter template updated. Hard rules updated to respect single-branch mode. Additional safety: execution config input validation (regex guards against command injection), DAG validation via Kahn's algorithm, checkpoint tag scoping to current task, build-fix hard cap of 5, deep review diff encoding with PS5.1 fallback, coordination file archiving with delimiter counting.
+- **v1.6.0** (2025-03) — Split strategy assessment: Crucible evaluates whether a task can be done on a single branch or needs multi-split branching. Stores `Split Strategy: single | multi` in plan's `## Execution Config`. Forge reads strategy and adjusts branch creation (no `/split-N` for single), push commands, rebase targets, forge-state template, task log header, completion summary, and user-facing report. Single-branch mode simplifies the flow for small/tightly-coupled tasks. Plan-drafter template updated. Hard rules updated to respect single-branch mode. Additional safety: execution config input validation (regex guards against command injection), DAG validation via Kahn's algorithm, checkpoint tag scoping to current task, build-fix hard cap of 5, deep review diff encoding with PS5.1 fallback, coordination file archiving with delimiter counting.
 - **v1.5.0** — Headless Forge: branch config (base branch, prefix, split relationship) moved from Forge Phase 5 to Crucible intake. Plan template includes `## Execution Config` section. Forge reads config from plan and runs headless after one "shall I proceed?" confirmation. Fallback prompting only if plan lacks execution config. Plan-drafter and plan-verifier updated for new section. README restructured: user-facing with examples, internals moved to ARCHITECTURE.md.
 - **v1.4.3** — Round 13 doc fixes: README Phase 1.5 aligned with SKILL.md (Phase 1 includes complexity, 1.5 = Validation), Phase 5 preview now complexity-aware for verifier text, scribe dispatch includes complexity field, deep-review fix loop verifier scope clarified, "two decisions" → "three", README Phase 2 arch doc qualified for large tasks, coordination file template covers small-task skip, Crucible context packet complexity instruction references plan-drafter template
 - **v1.4.2** — Round 12 fixes: Forge readiness now blocks on missing ## Complexity section and missing design doc for large tasks; Crucible Phase 5-6 fully complexity-aware (validation/cross-check/output/cleanup/hand-off all conditional on small vs large); Phase 6 design verifier skip path tightened for large tasks

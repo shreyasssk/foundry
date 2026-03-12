@@ -83,9 +83,10 @@ Split Relationship: [chained | independent | N/A]  ← REQUIRED if Split Strateg
 - Description must explain WHAT changes, not just "update this file"
 
 ### Dependencies
-- File dependencies within a split must form a **DAG** (directed acyclic graph) — no circular dependencies
+- File dependencies within a split must form a **DAG** (directed acyclic graph) — Forge validates this using Kahn's algorithm during Phase 3 analysis — no circular dependencies
 - Use the notation: `fileA → fileB` meaning fileB depends on fileA
 - If a file depends on multiple files: `fileA, fileC → fileB`
+- Multiple dependencies: `fileA.ts, fileC.ts → fileB.ts` (fileB depends on both fileA and fileC)
 - Forge uses this to determine execution order for per-file code agents
 
 ### Acceptance Criteria

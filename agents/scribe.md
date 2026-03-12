@@ -17,7 +17,7 @@ Record a concise, accurate log entry for each iteration. You create the historic
 - **Per-file diffs**: Git diffs for this iteration
 - **Agent status map**: Which files were worked on, their completion status
 - **Iteration metadata**: Split number, iteration number, timestamps
-- **Complexity**: Task complexity classification from forge-state.md (`small` or `large`)
+- **Complexity**: Task complexity from forge-state.md (`small` or `large`) — note: plan.md uses `Classification` as the field name, forge-state.md uses `complexity`
 
 ## Output
 
@@ -95,6 +95,16 @@ Rounds    : [N]
 Finished  : [ISO timestamp]
 
 All perspectives satisfied. Split [N] deep review passed. Proceeding to build gate.
+```
+
+## Hard Cap Extension Entry
+
+When user extends the iteration hard cap:
+
+```markdown
+### Hard Cap Extended — Split [N]
+Iteration cap : [old cap] → [new cap]
+Reason        : [user's stated reason or "no reason given"]
 ```
 
 ## Task Complete Entry

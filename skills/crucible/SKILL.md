@@ -50,8 +50,10 @@ To refine a plan with Crucible, provide:
 1. Task description  — text, file path, URL, or work item ID
 2. Architecture doc  — (optional) global/shared constraints
 3. Existing plan     — (optional) if you already have a plan.md, provide it for validation
-4. Design doc        — (optional) if not provided, Crucible generates one
+4. Design doc        — (optional) if not provided and task is complex, Crucible generates one
 ```
+
+> **Important**: Assess complexity (see § Complexity Assessment below) BEFORE asking about design doc. If complexity will be `small`, design doc is not needed — skip this prompt. Only ask for / mention design doc generation if complexity is `large` and the user hasn't already provided one.
 
 All Foundry working files and outputs live **outside the repo** at `~/.copilot/foundry/<task-slug>/`. Nothing is written to the source directory. Forge reuses the same directory.
 
@@ -76,7 +78,9 @@ Forge execution config (so Forge can run without prompting):
                         • independent: each split branches from the BASE branch (not from prior splits), enabling clean parallel merges
                         ⚠️ SKIP this question if split-strategy is single — set to N/A.
 
-**Note:** Independent splits execute sequentially. Each split branches from the base branch (not the prior split), enabling independent merges. True concurrent execution is a future enhancement.
+> **Important**: This question is conditional — only ask if split strategy (assessed below) results in `multi`. If split strategy is `single`, set `Split Relationship: N/A` and skip this question. Assess split strategy FIRST (see § Split Strategy Assessment), then return here for item #7 if needed.
+
+**Note:** Independent splits are logically independent (each branches from base, enabling independent merges) but execute sequentially in the current implementation — one Forge invocation per split. Parallel execution is a future enhancement.
 ```
 
 **All applicable items must be collected before proceeding.** Items #5-6 are always required. Item #7 is only required when split-strategy is `multi`. Prompt explicitly for anything missing — Forge will not ask again.
@@ -332,6 +336,8 @@ FOUNDRY_DIR="$HOME/.copilot/foundry/$slug"
 mkdir -p "$FOUNDRY_DIR"
 ```
 
+_(Full algorithm specification: see § Task Slug Algorithm in ARCHITECTURE.md)_
+
 Store `$FOUNDRY_DIR` in memory. All `crucible-*` files, `plan.md`, and `design-doc.md` go here, NOT in the repo. Forge will later use the same `$FOUNDRY_DIR` for its working files — both skills share one directory per task.
 
 ### Read Inputs
@@ -577,7 +583,7 @@ Run these checks — ALL must pass:
 - [ ] Task splits present and meaningfully scoped
 - [ ] Branch name specified
 - [ ] File-level breakdown per split with exact paths
-- [ ] File dependencies specified and free of circular references
+- [ ] File dependencies specified and free of circular references — validate dependency DAG using topological sort (Kahn's algorithm), consistent with Forge Phase 3 validation
 - [ ] Acceptance criteria per split (specific, testable)
 - [ ] Test strategy per split
 - [ ] No contradictions between splits

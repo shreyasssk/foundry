@@ -176,6 +176,8 @@ Minor wording differences are OK. Different type definitions or API shapes mean 
 - ❌ Problem statement without current-state/desired-state
 - ❌ "TBD" or "TODO" anywhere in the doc
 - ❌ Pseudocode instead of real language-specific type definitions
+- ❌ Fewer than 2 alternatives in the Alternatives Considered section — Crucible validation will reject this
+- ❌ Test strategy that implies separate test splits — tests must be co-located with their code in the execution plan
 
 ## Tone
 
