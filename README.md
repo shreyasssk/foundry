@@ -2,6 +2,9 @@
 
 > Plan with 3 AI models. Execute with coordinated agents. Ship with confidence.
 
+> [!CAUTION]
+> **AI can make mistakes.** Foundry is a powerful tool, but it is still just a tool. It is your responsibility to cross-check all outputs -- code, plans, and design docs. No matter how smart the orchestration gets, it still needs human intervention. **Please always verify your work before merging.**
+
 > [!IMPORTANT]
 > **Copilot CLI only.** Foundry requires multi-model orchestration (dispatching parallel agents to Claude, Codex, and Gemini) which is only available in [GitHub Copilot CLI](https://docs.github.com/copilot/concepts/agents/about-copilot-cli). It does **not** work with Claude Code, Claude Desktop, or other Claude interfaces -- those environments only have access to a single model and cannot run the cross-model review loops that Crucible and Forge depend on.
 
