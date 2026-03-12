@@ -47,8 +47,8 @@ Codebase context        architecture doc (large tasks only)
 | 3 | **Analyze** | Extract requirements, validate plan, generate summaries |
 | 4 | **Readiness** | Structured report of gaps and warnings |
 | 5 | **Confirm** | Final execution preview with user approval |
-| 6 | **Execute** | RALPH loop per split + post-execution build gate |
-| 7 | **Review** | Local deep review with adversarial multi-perspective analysis |
+| 6 | **Execute** | RALPH loop per split + per-split deep review + per-split build gate + commit |
+| 7 | **Summary** | Summary and Cleanup |
 
 ---
 
@@ -84,7 +84,7 @@ All agent dispatches use explicit `task(agent_type="foundry/<name>")` calls.
 | `architecture-verifier` | `task(agent_type="foundry/architecture-verifier")` | Checks code against architecture (at split completion, large tasks only) |
 | `scribe` | `task(agent_type="foundry/scribe")` | Conditional task logging |
 
-> **Note:** The deep review step in Forge Phase 7 uses external agents from the **deep-review** plugin (`deep-review/architect`, `deep-review/advocate`, `deep-review/skeptic`) — these are NOT foundry agents.
+> **Note:** The deep review step in Forge Phase 6 uses external agents from the **deep-review** plugin (`deep-review/architect`, `deep-review/advocate`, `deep-review/skeptic`) — these are NOT foundry agents.
 
 ---
 
@@ -120,7 +120,7 @@ The classification is stored in the plan's `## Complexity` section and read by F
 - **Adaptive convergence** (Crucible) — plain-language convergence checks, never forces premature consensus
 - **Hard caps** — 10 rounds in Crucible, 10 iterations per split in Forge, 5 rounds of deep review
 - **Resume support** — both skills track state and can pick up where they left off
-- **Post-execution build gate** (Forge) — full build after all splits complete, before deep review
+- **Per-split build gate** (Forge) — full build per split after deep review passes, before commit
 - **Git safety** (Forge) — fetch/rebase before push, specific file staging, user-specified base branch
 - **Architecture required** (Forge) — architecture doc is mandatory for large tasks; small tasks skip it per Crucible's complexity assessment
 - **Local deep review** (Forge) — runs against branch diff, no PR needed

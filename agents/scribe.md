@@ -86,14 +86,15 @@ You may NOT be invoked on clean iterations where all verifiers approve and there
 
 ## Deep Review Complete Entry
 
-After deep review passes, write:
+After deep review passes for a split, write:
 
 ```markdown
-## Deep Review Complete
+## Deep Review Complete — Split [N]
+Split     : [N]
 Rounds    : [N]
 Finished  : [ISO timestamp]
 
-All perspectives satisfied. Branch ready for user review.
+All perspectives satisfied. Split [N] deep review passed. Proceeding to build gate.
 ```
 
 ## Task Complete Entry

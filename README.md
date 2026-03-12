@@ -76,7 +76,7 @@ Forge this. Plan is at ./plan.md, architecture doc is at ./docs/architecture.md
 
 Forge will:
 1. Read and validate the plan
-2. Ask you for the base branch and naming preference
+2. Read branch config from the plan (set by Crucible)
 3. Write code file-by-file using dedicated code agents
 4. Verify every iteration against the plan (and design/architecture for large tasks)
 5. Commit, push, and run a final adversarial code review
@@ -161,10 +161,9 @@ You: "Forge this. Plan is at ./plan.md"
             |  3. Code       |  <- Agent writes each file (headless from here)
             |  4. Verify     |  <- Plan/design/arch verifiers check it
             |  5. Iterate    |  <- Fix issues, re-verify (max 10 rounds)
-            |  6. Commit     |  <- Push per split
-            |  7. Build      |  <- Full build gate after all splits
-            |  8. Review     |  <- 3 adversarial reviewers attack the code
-            |  9. Done       |  <- Branch pushed, you create the PR
+            |  6. Gate       |  <- Deep review + build verification per split
+            |  7. Commit     |  <- Push each split after passing gate
+            |  8. Done       |  <- Branch pushed, you create the PR
             +---------------+
 ```
 

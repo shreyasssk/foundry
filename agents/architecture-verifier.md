@@ -36,7 +36,7 @@ Check that code changes respect the architecture document's constraints, boundar
 
 ## Output
 
-Write your findings to `forge-verifier-arch.md` in the project folder. Use this exact format:
+Write your findings to `forge-verifier-arch.md` in the Forge working directory (`$FOUNDRY_DIR`). Use this exact format:
 
 ```markdown
 ## Architecture Verifier — Split [N]

@@ -248,7 +248,7 @@ Chaining : [chained / independent]
 Complexity: [small / large]
 Strategy : One code agent per file, parallel within dependency constraints
            Verifiers (plan every iteration; architecture + design at split completion [large tasks] or SKIPPED [small tasks])
-           Build gate after all splits complete, before deep review
+           Deep review + build gate per split (after verifiers approve, before commit)
            Scribe maintains task log at [project folder path]
 
 Shall I proceed?
@@ -696,7 +696,7 @@ SPLIT START (put the clay on the wheel)
        Wait for all three to complete. Write findings to `forge-coordination.md` under `## Deep Review — Split [N] Round [R]`.
 
        **Evaluate:**
-       - All three satisfied with no CRITICAL issues? → proceed to BUILD GATE (step 9)
+       - All three satisfied with no CRITICAL issues? → Invoke Scribe with "Deep Review Complete" entry for this split, then proceed to BUILD GATE (step 9)
        - CRITICAL issues found? → address feedback:
          1. Triage findings, group by file
          2. Identify conflicts between perspectives — flag and ask user
@@ -971,10 +971,10 @@ Do not merge. Hand off to the user.
 - Build gate and deep review run per-split (after verifiers approve, before commit) — not after all splits.
 - Deep review runs locally against the split's uncommitted diff — no PR required.
 - Always read base branch from the plan's `## Execution Config` section — never auto-detect or hardcode main/master. If execution config is missing, fall back to prompting the user once.
-- Always ask the user if splits are chained or independent in Phase 5 — independent splits should be separate Forge executions.
+- Read split chaining mode from the plan's `## Execution Config` section; only prompt if the section is missing — independent splits should be separate Forge executions.
 - Always dispatch agents explicitly using task(agent_type='foundry/<agent-name>') — never use vague instructions.
 - Each split gets its own branch (<task-branch>/split-N), chained from the previous split. Never put all splits on one branch.
-- Always ask the user for their branch naming preference/prefix in Phase 5 (before execution) — never duplicate the prompt in Phase 6.
+- Read branch naming preference/prefix from the plan's `## Execution Config` section; only prompt if the section is missing — never duplicate the prompt in Phase 6.
 - Always check for an existing branch (local → remote) BEFORE creating a new one from a parent — this prevents resume divergence.
 - When creating split-N branches, always include `origin/<task-branch>/split-<N-1>` as a final fallback parent for fresh-environment resume.
 - Always provide both PowerShell and Bash variants for shell commands. Never use bash-only syntax (e.g., `2>/dev/null`) in PowerShell blocks — use `2>$null` or try/catch instead.
@@ -982,4 +982,4 @@ Do not merge. Hand off to the user.
 - Always slugify branch names in checkpoint tags (replace `/` with `-`) to prevent git ref path conflicts with hierarchical branch names.
 - When extending the hard cap, always persist the new value to `hard-cap-iterations` in `forge-state.md` before continuing.
 - When the deep review diff exceeds ~80k characters, chunk it into per-file batches and run parallel deep review agents per batch, then synthesize.
-- Always offer to clean up checkpoint tags and per-file diff patches at task completion.
+- Always clean up checkpoint tags and working files at task completion.
