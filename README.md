@@ -146,8 +146,8 @@ You: "Plan this task: [description]"
             |   CRUCIBLE     |
             |                |
             |  1. Intake     |  <- You provide task + optional docs
-            |  2. Config     |  <- Base branch, naming, split relationship
-            |  3. Complexity |  <- AI decides: small or large task?
+            |  2. Assess     |  <- AI decides: small or large? single or multi-split?
+            |  3. Config     |  <- Base branch, naming, split relationship
             |  4. Fleet      |  <- 3 models plan independently
             |  5. Converge   |  <- Models cross-review until agreement
             |  6. Output     |  <- plan.md (with execution config) + design-doc.md (if large)
@@ -260,4 +260,4 @@ Shoutout to **Ian De La Garza** ([@iandelagarza](https://github.com/iandelagarza
 
 ---
 
-**v1.5.1** - [Version History](ARCHITECTURE.md#version-history)
+**v1.6.0** - [Version History](ARCHITECTURE.md#version-history)

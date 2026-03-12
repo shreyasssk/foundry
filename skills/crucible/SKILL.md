@@ -140,6 +140,11 @@ After complexity is decided, assess whether the task requires multiple splits or
 - No meaningful dependency ordering between files
 - Entire change can be reviewed as one coherent unit
 
+**Grey zone (6–7 files):**
+- Not clearly single or multi — present both options with pros/cons
+- Lean towards single if changes are tightly coupled; lean towards multi if there are natural phase boundaries
+- Always let the user decide for this range
+
 **Indicators of MULTI split** (splits recommended):
 - LARGE task with distinct logical phases
 - Changes span multiple components that can be developed independently

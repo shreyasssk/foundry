@@ -119,12 +119,12 @@ The classification is stored in the plan's `## Complexity` section and read by F
 
 After complexity assessment, Crucible evaluates whether the task needs multiple split branches or can be done on a single branch:
 
-| Indicator | Single Branch | Multi-Split |
-|-----------|--------------|-------------|
-| Scope | Tightly coupled changes | Distinct phases or layers |
-| Files | ≤ 5 files | > 8 files or independent groups |
-| Dependencies | All files interdependent | Clear dependency ordering |
-| Review | One review pass sufficient | Staged review preferred |
+| Indicator | Single Branch | Grey Zone (6–7 files) | Multi-Split |
+|-----------|--------------|----------------------|-------------|
+| Scope | Tightly coupled changes | Depends on coupling | Distinct phases or layers |
+| Files | ≤ 5 files | 6–7 files (user decides) | > 8 files or independent groups |
+| Dependencies | All files interdependent | Evaluate case-by-case | Clear dependency ordering |
+| Review | One review pass sufficient | Present both options | Staged review preferred |
 
 ### How It Works
 
