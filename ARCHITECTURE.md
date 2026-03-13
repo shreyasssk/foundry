@@ -110,18 +110,17 @@ The task slug is derived from the **task name** (the plan's `# ` title or `## Ov
 4. Remove any characters not matching `[a-z0-9\-]`
 5. Collapse consecutive hyphens into one
 6. Trim leading/trailing hyphens
-7. Truncate to **50 characters** (break at the last whole word that fits; if the first word exceeds 50 chars, hard-truncate at 50)
+7. Truncate to **50 characters** — if the transformed slug exceeds 50 characters, truncate at the last complete word boundary that fits within 50 characters. If the first word exceeds 50 chars, hard-truncate at 50. Example: `implement-user-authentication-for-the-new-dashboard-feature` → `implement-user-authentication-for-the-new` (46 chars, last whole word ≤50).
 8. Result: `add-oauth2-authentication`
 
 > **Canonical source:** Both Crucible and Forge derive the slug from the task name using this algorithm. The slug is recorded in `crucible-state.md` and `forge-state.md` so downstream consumers never need to re-derive it.
 
 This slug is also used for checkpoint tags, forge-state references, and the shared working directory.
 
-**Checkpoint tag format:** `forge-checkpoint--<slug>-split-<N>-iter-<I>` where:
+**Checkpoint tag format:** `forge-checkpoint--<slug>--split-<N>` where:
 - `<slug>` — task slug derived above (branch `/` replaced with `-` to avoid git ref conflicts)
 - `<N>` — split number (1-indexed; omitted for single-branch mode)
-- `<I>` — iteration number within the split (1-indexed)
-- Example: `forge-checkpoint--add-oauth2-authentication-split-2-iter-3`
+- Example: `forge-checkpoint--add-oauth2-authentication--split-2`
 
 ---
 
@@ -171,6 +170,8 @@ After complexity assessment, Crucible evaluates whether the task needs multiple 
 - Multiple branches, merge in order
 - Plan has N splits in `## Splits`
 - Split relationship (chained/independent) required
+
+> **Note on "Branch Prefix":** Despite the legacy name "Branch Prefix", this field contains the **complete task branch name** including the task slug portion (e.g., `feature/my-task`), not just a naming prefix. In single-branch mode it is used as-is; in multi-split mode Forge appends `/split-N`.
 
 ---
 

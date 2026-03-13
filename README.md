@@ -185,7 +185,7 @@ During planning, Crucible collects everything Forge needs so Forge can run headl
 | Existing plan/design doc | Always (optional) | File path or "none" |
 | Complexity confirmation | After assessment | Agree with AI recommendation or override |
 | Base branch | Always | `main`, `master`, `develop`, `build/main/latest`, etc. |
-| Branch prefix | Always | `user/<alias>/<name>`, `feature/<name>`, custom |
+| Branch prefix (full task branch name) | Always | `user/<alias>/<name>`, `feature/<name>`, custom |
 | Split relationship | Multi-split tasks | Chained (builds on previous) or independent |
 | Split strategy | After assessment | Single branch (small tasks) or multi-split |
 

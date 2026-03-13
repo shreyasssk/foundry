@@ -26,6 +26,7 @@ Before asking for documents, check if a `forge-state.md` already exists in the F
    - Does `base-branch` exist? If missing (legacy state from pre-v1.3.5), ask the user to provide it before resuming.
    - Does `complexity` exist? If missing (legacy state from pre-v1.4.0), check plan for `## Complexity` section first. If plan also lacks it, prompt user: `'No complexity classification found — classify as small or large?'` Only default to `large` as absolute last resort if user is unavailable. Log: `⚠️ Pre-v1.4.0 state detected — resolved complexity to <actual> via [plan | user prompt | large fallback].`
    - Does `split-strategy` exist? If missing (pre-v1.5.0 state): log `⚠️ Pre-v1.5.0 state detected — cannot reliably infer split-strategy. Defaulting to multi (full ceremony). Override with user input if incorrect.` Default to `multi`.
+    - Does `split-relationship` exist? If `split-strategy` is `multi` and `split-relationship` is missing: log `⚠️ split-relationship missing for multi-split state. Prompting user.` Ask user: `'Split relationship not found — chained or independent?'` Default to `chained` if user is unavailable.
 3. If valid, present to the user:
    ```
    Found existing Forge state:
@@ -329,7 +330,7 @@ git ls-remote --exit-code origin
 
 If any preflight check fails, do NOT proceed. Report the failure and wait for the user.
 
-**Multi + Independent split guard:** If `split-strategy: multi` and `chained: false` (independent) in forge-state.md, verify that no other split is currently in-progress. Check `forge-state.md → current-split-status`. If another split shows status `in-progress`, STOP — independent splits execute sequentially to avoid forge-state.md conflicts. Tell the user:
+**Multi + Independent split guard:** If `split-strategy: multi` and `split-relationship: independent` in forge-state.md, verify that no other split is currently in-progress. Check `forge-state.md → current-split-status`. If another split shows status `in-progress`, STOP — independent splits execute sequentially to avoid forge-state.md conflicts. Tell the user:
 ```
 ⚠️ Independent splits must run one at a time. Split <N> is still in-progress.
     Complete or abort split <N> before starting a new one.
@@ -345,7 +346,13 @@ Derive the slug from the **task name** (same source as Crucible) — extract fro
 ```powershell
 # PowerShell — derive slug from task name (must match Crucible's algorithm)
 $slug = ($taskName -replace '[^a-zA-Z0-9_-]', '-' -replace '-+', '-').ToLower().Trim('-')
-$slug = $slug.Substring(0, [Math]::Min($slug.Length, 50)).TrimEnd('-')
+# Truncate at the LAST whole word boundary that fits within 50 characters
+if ($slug.Length -gt 50) {
+    $truncated = $slug.Substring(0, 50)
+    $lastDash = $truncated.LastIndexOf('-')
+    if ($lastDash -gt 0) { $slug = $truncated.Substring(0, $lastDash) } else { $slug = $truncated }
+}
+$slug = $slug.TrimEnd('-')
 # (Full algorithm specification: see § Task Slug Algorithm in ARCHITECTURE.md)
 $FOUNDRY_DIR = Join-Path $HOME ".copilot" "foundry" $slug
 New-Item -ItemType Directory -Path $FOUNDRY_DIR -Force | Out-Null
@@ -353,7 +360,12 @@ New-Item -ItemType Directory -Path $FOUNDRY_DIR -Force | Out-Null
 ```bash
 # Bash — derive slug from task name (must match Crucible's algorithm)
 slug=$(echo "$taskName" | sed 's/[^a-zA-Z0-9_-]/-/g; s/-\{2,\}/-/g; s/^-//; s/-$//' | tr '[:upper:]' '[:lower:]')
-slug="${slug:0:50}"; slug="${slug%-}"
+# Truncate at the LAST whole word boundary that fits within 50 characters
+if [ ${#slug} -gt 50 ]; then
+  slug="${slug:0:50}"
+  slug="${slug%-*}"  # strip back to last hyphen (word boundary)
+fi
+slug="${slug%-}"
 # (Full algorithm specification: see § Task Slug Algorithm in ARCHITECTURE.md)
 FOUNDRY_DIR="$HOME/.copilot/foundry/$slug"
 mkdir -p "$FOUNDRY_DIR"
@@ -531,7 +543,7 @@ task-branch: <branch-prefix from plan's ## Execution Config>
 base-branch: <base-branch from plan's ## Execution Config>
 current-branch: <task-branch>              ← if single
                 <task-branch>/split-1      ← if multi
-chained: <true|false from plan's ## Execution Config → Split Relationship>  # omit or set false for single-branch
+split-relationship: <chained|independent from plan's ## Execution Config → Split Relationship>  # omit or set "independent" for single-branch
 ---
 
 ## Dependency Graph
@@ -605,7 +617,7 @@ Update `forge-state.md` after every step:
 
 **Multi-split mode:** Repeat for each split in order:
 
-**Important:** If the user chose "independent" splits in Phase 5, only ONE split should be executing in this Forge session. If `split-strategy` is `multi` and `chained: false` in forge-state.md, and multiple splits somehow reached Phase 6, STOP and remind the user that independent splits require separate Forge executions. (This check does NOT apply to `split-strategy: single` — single-branch mode always has one unit of work regardless of the `chained` field.)
+**Important:** If the user chose "independent" splits in Phase 5, only ONE split should be executing in this Forge session. If `split-strategy` is `multi` and `split-relationship: independent` in forge-state.md, and multiple splits somehow reached Phase 6, STOP and remind the user that independent splits require separate Forge executions. (This check does NOT apply to `split-strategy: single` — single-branch mode always has one unit of work regardless of the `split-relationship` field.)
 
 ```
 SPLIT START (put the clay on the wheel)
@@ -673,6 +685,8 @@ SPLIT START (put the clay on the wheel)
            Per-file diffs: [diffs]
            File list: [files in this split]
            Split description: [split N details]
+           Split number: [N of total splits]
+           Iteration number: [current RALPH iteration]
            Output file: forge-verifier-plan.md (located at `<actual $FOUNDRY_DIR path>`)
          ")
          ```
@@ -685,6 +699,8 @@ SPLIT START (put the clay on the wheel)
            Per-file diffs: [diffs]
            File list: [files in this split]
            Split description: [split N details]
+           Split number: [N of total splits]
+           Iteration number: [current RALPH iteration]
            Output file: forge-verifier-arch.md (located at `<actual $FOUNDRY_DIR path>`)
          ")
          ```
@@ -705,6 +721,8 @@ SPLIT START (put the clay on the wheel)
            Per-file diffs: [diffs]
            File list: [files in this split]
            Split description: [split N details]
+           Split number: [N of total splits]
+           Iteration number: [current RALPH iteration]
            Output file: forge-verifier-design.md (located at `<actual $FOUNDRY_DIR path>`)
          ")
          ```
@@ -764,6 +782,8 @@ SPLIT START (put the clay on the wheel)
        If the file exceeds 50 sections (count `---` delimiters at column 0, outside fenced code blocks — per Crucible Rule 10), archive older sections to `forge-coordination-archive.md` and keep only the last 10 in the active file.
 
     6. SCRIBE (conditional)
+
+       **Timing:** Scribe is dispatched AFTER an iteration fully completes (all code agents finish, all verifiers return, coordination file is updated). Never dispatch Scribe mid-iteration — it must see the final state.
 
        Invoke Scribe:
          - If ANY verifier returned ISSUES FOUND
@@ -878,6 +898,7 @@ SPLIT START (put the clay on the wheel)
        - Write build errors to `forge-coordination.md`
        - Re-enter RALPH loop (step 2) to fix build errors
        - After fixes, re-run build (no need to re-run deep review unless files changed significantly)
+       - **Progress check:** Track the primary error signature (first compiler error message) across consecutive build-fix attempts. If the SAME primary error persists for 3 consecutive attempts, escalate immediately to the user — do not wait for the hard cap. Log: `⚠️ Build fix loop stalled — same error after 3 attempts. Escalating.`
        - Repeat until build passes — hard cap of 5 build-fix attempts (tracked in forge-state.md → build-fix-attempts) to prevent infinite loops. If build still fails after 5 attempts, present to user with options (similar to RALPH hard cap menu).
 
        If build **PASSES** → proceed to COMMIT AND PUSH (step 10)
@@ -906,9 +927,14 @@ SPLIT START (put the clay on the wheel)
        git rebase origin/$BASE_BRANCH
        ```
 
-       For **multi-split, split N > 1** — rebase against the previous split's branch:
+       For **multi-split, split N > 1** — rebase target depends on split relationship:
+       - If `split-relationship: chained` → rebase against the previous split's branch:
        ```bash
        git rebase origin/<task-branch>/split-<N-1>
+       ```
+       - If `split-relationship: independent` → rebase against the base branch (same as split 1):
+       ```bash
+       git rebase origin/$BASE_BRANCH
        ```
 
        If rebase **fails** (conflicts):
@@ -1159,13 +1185,30 @@ Write execution summary to `forge-summary.md`:
    ```powershell
    # PowerShell — scope to current task slug to avoid deleting other sessions' tags
    $taskSlug = "<slugified-task-branch>"  # same slug used when creating checkpoint tags
-   git tag -l "forge-checkpoint--$taskSlug*" | ForEach-Object { git tag -d $_; git push origin --delete $_ 2>$null }
+   git tag -l "forge-checkpoint--$taskSlug*" | ForEach-Object {
+       git tag -d $_
+       $pushed = git push origin --delete $_ 2>$null
+       if ($LASTEXITCODE -ne 0) {
+           Write-Host "⚠️ Failed to delete remote tag $_  — will retry once"
+           Start-Sleep -Seconds 2
+           git push origin --delete $_ 2>$null  # single retry
+       }
+   }
    ```
    ```bash
    # Bash — scope to current task slug
    TASK_SLUG="<slugified-task-branch>"
-   git tag -l "forge-checkpoint--${TASK_SLUG}*" | xargs -I{} sh -c 'git tag -d {} && git push origin --delete {} 2>/dev/null'
+   git tag -l "forge-checkpoint--${TASK_SLUG}*" | while read -r tag; do
+       git tag -d "$tag"
+       if ! git push origin --delete "$tag" 2>/dev/null; then
+           echo "⚠️ Failed to delete remote tag $tag — will retry once"
+           sleep 2
+           git push origin --delete "$tag" 2>/dev/null  # single retry
+       fi
+   done
    ```
+
+   **Atomicity note:** Always delete the remote tag BEFORE the local tag if ordering matters for resume safety. The commands above delete local first for simplicity — if the remote push fails, the local tag is already gone but the remote is still present, which is safe (the tag is still discoverable). Never delete local tags in bulk without attempting the remote push — a partial cleanup where local tags are gone but remote tags remain is recoverable; the reverse is not.
 
    Log: `Cleaned up [N] checkpoint tags.`
 
@@ -1199,7 +1242,7 @@ Do not merge. Hand off to the user.
 - Build gate and deep review run per-split (after verifiers approve, before commit) — not after all splits.
 - Deep review runs locally against the split's uncommitted diff — no PR required.
 - Always read base branch from the plan's `## Execution Config` section — never auto-detect or hardcode main/master. If execution config is missing, fall back to prompting the user once.
-- Read split chaining mode from the plan's `## Execution Config` section; only prompt if the section is missing — independent splits should be separate Forge executions.
+- Read split-relationship (chained/independent) from the plan's `## Execution Config` section; only prompt if the section is missing — independent splits should be separate Forge executions.
 - Always dispatch agents explicitly using task(agent_type='foundry/<agent-name>') — never use vague instructions.
 - Each split gets its own branch (<task-branch>/split-N), chained from the previous split OR from the base branch (if independent) — UNLESS `split-strategy` is `single`, in which case use `<task-branch>` directly without `/split-N` suffix.
 - Read branch naming preference/prefix from the plan's `## Execution Config` section; only prompt if the section is missing — never duplicate the prompt in Phase 6.

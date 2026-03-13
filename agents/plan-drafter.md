@@ -32,9 +32,9 @@ Architecture Doc: [skip | required]
 
 ## Execution Config
 Base Branch: [base branch name — e.g., main, master, develop, build/main/latest]
-Branch Prefix: [full prefix pattern — e.g., user/johndoe/add-auth, feature/add-auth, forge/add-auth]
+Branch Prefix: [full task branch name — e.g., user/johndoe/add-auth, feature/add-auth, forge/add-auth]
 Split Strategy: [single | multi]
-Split Relationship: [chained | independent | N/A]  ← REQUIRED if Split Strategy is multi; set to N/A if single
+Split Relationship: [chained | independent | N/A]  ← REQUIRED if Split Strategy is multi; set to `N/A` if single (do not omit)
 
 ## Overview
 [2-4 sentences: what this task does, the technical approach, and scope boundaries]
@@ -83,7 +83,7 @@ Split Relationship: [chained | independent | N/A]  ← REQUIRED if Split Strateg
 - Description must explain WHAT changes, not just "update this file"
 
 ### Dependencies
-- File dependencies within a split must form a **DAG** (directed acyclic graph) — Forge validates this using Kahn's algorithm during Phase 3 analysis — no circular dependencies
+- File dependencies within a split must form a **DAG** (directed acyclic graph) — Forge validates this using Kahn's algorithm during Phase 3 analysis — no circular dependencies. The generated dependency DAG must be acyclic. Crucible validates this via topological sort after plan generation.
 - Use the notation: `fileA → fileB` meaning fileB depends on fileA
 - If a file depends on multiple files: `fileA, fileC → fileB`
 - Multiple dependencies: `fileA.ts, fileC.ts → fileB.ts` (fileB depends on both fileA and fileC)
@@ -103,7 +103,7 @@ Split Relationship: [chained | independent | N/A]  ← REQUIRED if Split Strateg
 - The context packet includes execution config set by the user during Crucible intake
 - **You MUST include the `## Execution Config` section** in your plan.md output — Forge reads this to run headless (no prompts during execution)
 - Copy the values (`Base Branch`, `Branch Prefix`, `Split Strategy`, `Split Relationship`) exactly from the context packet
-- `Branch Prefix` is the branch name — if multi-split, Forge appends `/split-N` automatically; if single, it's used as-is
+- `Branch Prefix` is the full task branch name (e.g., `feature/add-auth`), not just a naming prefix — if multi-split, Forge appends `/split-N` automatically; if single, it's used as-is
 - `Split Strategy` must be either `single` or `multi`
 - `Split Relationship` must be `chained` or `independent` when `Split Strategy` is `multi`; set to `N/A` when `Split Strategy` is `single`
 - When `Split Strategy` is `single`, the plan should have exactly 1 split in `## Splits`

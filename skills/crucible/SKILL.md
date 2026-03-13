@@ -50,10 +50,9 @@ To refine a plan with Crucible, provide:
 1. Task description  — text, file path, URL, or work item ID
 2. Architecture doc  — (optional) global/shared constraints
 3. Existing plan     — (optional) if you already have a plan.md, provide it for validation
-4. Design doc        — (optional) if not provided and task is complex, Crucible generates one
 ```
 
-> **Important**: Assess complexity (see § Complexity Assessment below) BEFORE asking about design doc. If complexity will be `small`, design doc is not needed — skip this prompt. Only ask for / mention design doc generation if complexity is `large` and the user hasn't already provided one.
+> **Design doc question is complexity-gated — only prompted for medium+ tasks.** Do NOT ask about design docs during initial intake. After collecting items 1-3, proceed to § Complexity Assessment. If complexity is assessed as `large`, THEN ask: "Do you want a design document? (Recommended for complex tasks.)" If complexity is `small`, skip the design doc question entirely — no mention, no prompt. This prevents overwhelming users with unnecessary choices on simple tasks.
 
 All Foundry working files and outputs live **outside the repo** at `~/.copilot/foundry/<task-slug>/`. Nothing is written to the source directory. Forge reuses the same directory.
 
@@ -81,6 +80,8 @@ Forge execution config (so Forge can run without prompting):
 > **Important**: This question is conditional — only ask if split strategy (assessed below) results in `multi`. If split strategy is `single`, set `Split Relationship: N/A` and skip this question. Assess split strategy FIRST (see § Split Strategy Assessment), then return here for item #7 if needed.
 
 **Note:** Independent splits are logically independent (each branches from base, enabling independent merges) but execute sequentially in the current implementation — one Forge invocation per split. Parallel execution is a future enhancement.
+
+> **Concurrency note**: `forge-state.md` is designed for single-agent sequential access. Foundry does not support parallel split execution — splits execute sequentially even when independent. The `independent` relationship affects branch topology (rebase target), not execution concurrency. Do not attempt concurrent writes to `forge-state.md` or `crucible-state.md`.
 ```
 
 **All applicable items must be collected before proceeding.** Items #5-6 are always required. Item #7 is only required when split-strategy is `multi`. Prompt explicitly for anything missing — Forge will not ask again.
@@ -320,21 +321,31 @@ If all checks pass:
 All Foundry files (Crucible and Forge) live **outside the repo** in a shared directory per task. Derive a slug from the task name and create:
 
 ```powershell
-# PowerShell
+# PowerShell — truncate at last whole word boundary within 50 chars
 $slug = ($taskName -replace '[^a-zA-Z0-9_-]', '-' -replace '-+', '-').ToLower().Trim('-')
-$slug = $slug.Substring(0, [Math]::Min($slug.Length, 50))
+if ($slug.Length -gt 50) {
+    $truncated = $slug.Substring(0, 50)
+    $lastDash = $truncated.LastIndexOf('-')
+    if ($lastDash -gt 0) { $truncated = $truncated.Substring(0, $lastDash) }
+    $slug = $truncated
+}
 $slug = $slug.TrimEnd('-')
 $FOUNDRY_DIR = Join-Path $HOME ".copilot" "foundry" $slug
 New-Item -ItemType Directory -Path $FOUNDRY_DIR -Force | Out-Null
 ```
 ```bash
-# Bash — replace non-safe chars with dashes (matches PowerShell behavior)
+# Bash — truncate at last whole word boundary within 50 chars
 slug=$(echo "$taskName" | sed 's/[^a-zA-Z0-9_-]/-/g; s/-\{2,\}/-/g; s/^-//; s/-$//' | tr '[:upper:]' '[:lower:]')
-slug="${slug:0:50}"
+if [ ${#slug} -gt 50 ]; then
+    slug="${slug:0:50}"
+    slug="${slug%-*}"  # truncate at last dash (word boundary)
+fi
 slug="${slug%-}"
 FOUNDRY_DIR="$HOME/.copilot/foundry/$slug"
 mkdir -p "$FOUNDRY_DIR"
 ```
+
+> **Word-boundary truncation**: The slug is truncated at the last whole-word boundary (dash) that fits within 50 characters, not mid-word. Example: `"implement-user-authentication-for-sharepoint-online-tenant-admin"` → truncated at 50 chars would be `"implement-user-authentication-for-sharepoint-onlin"` (mid-word), but word-boundary truncation yields `"implement-user-authentication-for-sharepoint"` instead.
 
 _(Full algorithm specification: see § Task Slug Algorithm in ARCHITECTURE.md)_
 
@@ -452,6 +463,7 @@ Models    : [opus, codex, gemini]
 Complexity: [small | large]
 Generate  : [plan-only | plan-and-design]
 Split-Strategy: [single | multi]
+Split-Relationship: [chained | independent | N/A]
 Base-Branch   : [branch name]
 Branch-Prefix : foundry/
 
@@ -590,7 +602,21 @@ Run these checks — ALL must pass:
 - [ ] Splits are ordered respecting inter-split dependencies
 - [ ] Split dependencies form a valid DAG (no cycles). If a cycle is detected, flag it in the readiness report
 
-If any check fails → dispatch one targeted model round to fix ONLY the failing checks.
+#### DAG Re-Validation After Plan-Drafter
+
+After plan-drafter generates the split ordering, Crucible validates the dependency DAG:
+1. **No cycles** — verify no cycles exist via topological sort (Kahn's algorithm). If a cycle is found, report the exact cycle path (e.g., "Split 2 → Split 3 → Split 2").
+2. **All references valid** — confirm all referenced split numbers exist in the plan. Flag any `depends_on` entry pointing to a non-existent split.
+3. **Order respects dependencies** — confirm the execution order respects all declared dependencies (no split executes before its prerequisites).
+
+If validation fails, re-dispatch plan-drafter with the specific error:
+```
+DAG validation failed:
+  [specific error, e.g., "Cycle detected: Split 2 → Split 3 → Split 2" or "Split 4 depends on non-existent Split 7"]
+Fix the dependency graph and re-emit the plan.
+```
+
+If any other check fails → dispatch one targeted model round to fix ONLY the failing checks.
 
 ### design-doc.md Validation (Forge Requirements)
 
