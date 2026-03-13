@@ -25,7 +25,7 @@ Before asking for documents, check if a `forge-state.md` already exists in the F
    - Is the working tree clean? (`git status --porcelain`)
    - Does `base-branch` exist? If missing (legacy state from pre-v1.3.5), ask the user to provide it before resuming.
    - Does `complexity` exist? If missing (legacy state from pre-v1.4.0), check plan for `## Complexity` section first. If plan also lacks it, prompt user: `'No complexity classification found — classify as small or large?'` Only default to `large` as absolute last resort if user is unavailable. Log: `⚠️ Pre-v1.4.0 state detected — resolved complexity to <actual> via [plan | user prompt | large fallback].`
-   - Does `split-strategy` exist? If missing (pre-v1.5.0 state): log `⚠️ Pre-v1.5.0 state detected — cannot reliably infer split-strategy. Defaulting to multi (full ceremony). Override with user input if incorrect.` Default to `multi`.
+   - Does `split-strategy` exist? If missing (pre-v1.5.0 state): first check the plan's `## Execution Config` section for a `Split Strategy` field. If found, use it. If not found in the plan either, log `⚠️ Pre-v1.5.0 state detected — cannot reliably infer split-strategy. Defaulting to multi (full ceremony). Override with user input if incorrect.` and default to `multi`.
     - Does `split-relationship` exist? If `split-strategy` is `multi` and `split-relationship` is missing: log `⚠️ split-relationship missing for multi-split state. Prompting user.` Ask user: `'Split relationship not found — chained or independent?'` Default to `chained` if user is unavailable.
 3. If valid, present to the user:
    ```
@@ -135,7 +135,7 @@ Extract and internalize the following from each document.
 - Does the plan align with the design doc?
 - Does the design respect architecture constraints?
 - Are there contradictions or gaps between any two documents?
-- Is the file dependency graph acyclic? Validate DAG using topological sort (Kahn's algorithm): build adjacency list from file dependencies, track in-degree per node, process zero-in-degree nodes iteratively. If any nodes remain after processing, a cycle exists — flag as `[BLOCKING]` with the cycle path.
+- Is the file dependency graph acyclic? Validate DAG using topological sort (Kahn's algorithm): build adjacency list from file dependencies, track in-degree per node, process zero-in-degree nodes iteratively. If any nodes remain after processing, a cycle exists — flag as `[BLOCKING]` with the cycle path and re-enter the RALPH loop to fix the dependency cycle (do not block and wait for the user; attempt an automatic fix first).
 
 ### Plan-Specific Validation (required for execution)
 
@@ -359,11 +359,12 @@ New-Item -ItemType Directory -Path $FOUNDRY_DIR -Force | Out-Null
 ```
 ```bash
 # Bash — derive slug from task name (must match Crucible's algorithm)
-slug=$(echo "$taskName" | sed 's/[^a-zA-Z0-9_-]/-/g; s/-\{2,\}/-/g; s/^-//; s/-$//' | tr '[:upper:]' '[:lower:]')
+slug=$(echo "$taskName" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/-/g' | tr -s '-' | sed 's/^-//; s/-$//')
 # Truncate at the LAST whole word boundary that fits within 50 characters
 if [ ${#slug} -gt 50 ]; then
   slug="${slug:0:50}"
-  slug="${slug%-*}"  # strip back to last hyphen (word boundary)
+  trimmed="${slug%-*}"  # strip back to last hyphen (word boundary)
+  [ -n "$trimmed" ] && slug="$trimmed"  # guard: keep full slug if no dash found
 fi
 slug="${slug%-}"
 # (Full algorithm specification: see § Task Slug Algorithm in ARCHITECTURE.md)
@@ -735,12 +736,16 @@ SPLIT START (put the clay on the wheel)
 
        ```powershell
        # PowerShell — write verifier diffs to $FOUNDRY_DIR (not repo root)
-       # PowerShell 7+: Out-File -Encoding utf8NoBOM
-       # PowerShell 5.1: [IO.File]::WriteAllText($path, (git diff HEAD -- <file> | Out-String))
-       git diff HEAD -- <file1> | Out-File -Encoding utf8NoBOM "$FOUNDRY_DIR/forge-diff-file1.patch"
-       git diff HEAD -- <file2> | Out-File -Encoding utf8NoBOM "$FOUNDRY_DIR/forge-diff-file2.patch"
-       # Fallback for PowerShell 5.1 (no utf8NoBOM):
-       # [IO.File]::WriteAllText("$FOUNDRY_DIR/forge-diff-file1.patch", (git diff HEAD -- <file1> | Out-String), [Text.UTF8Encoding]::new($false))
+       # Detects PowerShell version for BOM-free UTF-8 encoding
+       function Write-Utf8NoBom($path, $content) {
+           if ($PSVersionTable.PSVersion.Major -ge 7) {
+               $content | Out-File -Encoding utf8NoBOM $path
+           } else {
+               [IO.File]::WriteAllText($path, $content, [Text.UTF8Encoding]::new($false))
+           }
+       }
+       Write-Utf8NoBom "$FOUNDRY_DIR/forge-diff-file1.patch" (git diff HEAD -- <file1> | Out-String)
+       Write-Utf8NoBom "$FOUNDRY_DIR/forge-diff-file2.patch" (git diff HEAD -- <file2> | Out-String)
        ```
        ```bash
        # Bash — write verifier diffs to $FOUNDRY_DIR (not repo root)
@@ -841,10 +846,10 @@ SPLIT START (put the clay on the wheel)
        Once all verifiers approve for this split, run deep review BEFORE committing.
        This catches issues early — before they propagate to the next split.
 
-       Generate the split's diff using utf8NoBOM encoding (see § Verifier Diff Generation above for encoding details):
+       Generate the split's diff using BOM-free UTF-8 encoding (see § Verifier Diff Generation above for the `Write-Utf8NoBom` helper):
        ```powershell
-       # PowerShell — write deep review diff to $FOUNDRY_DIR (utf8NoBOM — see verifier diff section)
-       git diff HEAD | Out-File -Encoding utf8NoBOM "$FOUNDRY_DIR/forge-deep-review-diff.patch"
+       # PowerShell — write deep review diff to $FOUNDRY_DIR (uses Write-Utf8NoBom from verifier section)
+       Write-Utf8NoBom "$FOUNDRY_DIR/forge-deep-review-diff.patch" (git diff HEAD | Out-String)
        ```
        ```bash
        # Bash — write deep review diff to $FOUNDRY_DIR
@@ -898,7 +903,7 @@ SPLIT START (put the clay on the wheel)
        - Write build errors to `forge-coordination.md`
        - Re-enter RALPH loop (step 2) to fix build errors
        - After fixes, re-run build (no need to re-run deep review unless files changed significantly)
-       - **Progress check:** Track the primary error signature (first compiler error message) across consecutive build-fix attempts. If the SAME primary error persists for 3 consecutive attempts, escalate immediately to the user — do not wait for the hard cap. Log: `⚠️ Build fix loop stalled — same error after 3 attempts. Escalating.`
+       - **Progress check:** Track the primary error signature (first compiler error message) AND total error count across consecutive build-fix attempts. If the SAME primary error persists for 3 consecutive attempts OR the total error count has not decreased for 3 consecutive attempts, escalate immediately to the user — do not wait for the hard cap. Log: `⚠️ Build fix loop stalled — same error after 3 attempts. Escalating.`
        - Repeat until build passes — hard cap of 5 build-fix attempts (tracked in forge-state.md → build-fix-attempts) to prevent infinite loops. If build still fails after 5 attempts, present to user with options (similar to RALPH hard cap menu).
 
        If build **PASSES** → proceed to COMMIT AND PUSH (step 10)

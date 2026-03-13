@@ -335,10 +335,11 @@ New-Item -ItemType Directory -Path $FOUNDRY_DIR -Force | Out-Null
 ```
 ```bash
 # Bash — truncate at last whole word boundary within 50 chars
-slug=$(echo "$taskName" | sed 's/[^a-zA-Z0-9_-]/-/g; s/-\{2,\}/-/g; s/^-//; s/-$//' | tr '[:upper:]' '[:lower:]')
+slug=$(echo "$taskName" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/-/g' | tr -s '-' | sed 's/^-//; s/-$//')
 if [ ${#slug} -gt 50 ]; then
     slug="${slug:0:50}"
-    slug="${slug%-*}"  # truncate at last dash (word boundary)
+    trimmed="${slug%-*}"  # truncate at last dash (word boundary)
+    [ -n "$trimmed" ] && slug="$trimmed"  # guard: keep full slug if no dash found
 fi
 slug="${slug%-}"
 FOUNDRY_DIR="$HOME/.copilot/foundry/$slug"
@@ -450,9 +451,13 @@ Collect outputs from all agents (3 plan-drafters + up to 3 design-drafters if co
 
 Store each model's output in `$FOUNDRY_DIR`:
 
-- `crucible-round-1-opus.md`
-- `crucible-round-1-codex.md`
-- `crucible-round-1-gemini.md`
+- `crucible-round-1-opus.md` (plan-drafter output)
+- `crucible-round-1-codex.md` (plan-drafter output)
+- `crucible-round-1-gemini.md` (plan-drafter output)
+- If complexity is `large` (design doc needed), also store:
+  - `crucible-round-1-opus-design.md` (design-drafter output)
+  - `crucible-round-1-codex-design.md` (design-drafter output)
+  - `crucible-round-1-gemini-design.md` (design-drafter output)
 
 Write initial `crucible-state.md` to `$FOUNDRY_DIR`:
 
@@ -468,7 +473,7 @@ Generate  : [plan-only | plan-and-design]
 Split-Strategy: [single | multi]
 Split-Relationship: [chained | independent | N/A]
 Base-Branch   : [branch name]
-Branch-Prefix : foundry/
+Branch-Prefix : [from intake, default: foundry/]
 
 ## Round History
 | Round | Opus | Codex | Gemini | Converged |
