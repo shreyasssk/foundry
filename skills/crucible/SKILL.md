@@ -351,6 +351,8 @@ _(Full algorithm specification: see § Task Slug Algorithm in ARCHITECTURE.md)_
 
 Store `$FOUNDRY_DIR` in memory. All `crucible-*` files, `plan.md`, and `design-doc.md` go here, NOT in the repo. Forge will later use the same `$FOUNDRY_DIR` for its working files — both skills share one directory per task.
 
+> ⚠️ **Zero repo pollution**: NEVER write `plan.md`, `design-doc.md`, `crucible-state.md`, or ANY Foundry working file to the repository working directory or CWD. ALL Foundry files go to `$FOUNDRY_DIR` (`~/.copilot/foundry/<slug>/`) — no exceptions. Sub-agents (plan-drafter, design-drafter) return content as text; the orchestrator writes it to `$FOUNDRY_DIR`.
+
 ### Read Inputs
 
 For each input provided:
@@ -397,6 +399,7 @@ You are one of 3 models participating in a Crucible refinement process.
 Your job is to produce a Forge-compatible plan (and design doc if complexity is "large").
 Be specific — include exact file paths, concrete types, real method signatures.
 Do not be generic or hand-wavy.
+**IMPORTANT**: Return your output as text in your response. Do NOT use create/edit/write tools to produce files — the Crucible orchestrator handles all file I/O and writes outputs to the Foundry task directory. You produce content; the orchestrator writes it.
 The plan.md MUST include a `## Complexity` section with `Classification: small` or `Classification: large` (see plan-drafter template for full format).
 The plan.md MUST include a `## Execution Config` section with the user's branch and split preferences — Forge reads this to run headless. Copy the values from the execution config below.
 
@@ -503,7 +506,7 @@ a REVISED version.
 1. Read all 3 outputs carefully
 2. Identify the BEST ideas from each
 3. Identify disagreements, gaps, or weaknesses
-4. Produce your REVISED plan.md (and design-doc.md if applicable)
+4. Produce your REVISED plan.md (and design-doc.md if applicable) — return as text, do NOT write files
 5. At the END, add a convergence assessment:
 
 ### Convergence Assessment
@@ -515,7 +518,7 @@ a REVISED version.
   1. [what you changed and why]
 ```
 
-3. Store outputs: `crucible-round-N-opus.md`, `crucible-round-N-codex.md`, `crucible-round-N-gemini.md`
+3. Store outputs to `$FOUNDRY_DIR`: `crucible-round-N-opus.md`, `crucible-round-N-codex.md`, `crucible-round-N-gemini.md`. All intermediate and final files go to `$FOUNDRY_DIR` — never to the repository working directory.
 
 4. **Convergence Detection**: After all 3 complete, check:
    - Did all 3 say "CONVERGED: yes"? → **Exit loop, proceed to Phase 5**

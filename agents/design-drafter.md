@@ -14,6 +14,10 @@ Produce a Forge-compatible `design-doc.md` that Forge's design-verifier agent ca
 2. Forge's design-verifier can check code against every section
 3. The plan-drafter's `plan.md` aligns with this design
 
+## Output Delivery
+
+**Return your design doc as your text response.** Do NOT use `create`, `edit`, or any file-writing tools — the Crucible orchestrator handles all file I/O and writes outputs to the correct Foundry directory. Your job is to produce the content; the orchestrator writes it.
+
 ## Context You Receive
 
 - **Task description**: What needs to be built/changed
