@@ -19,7 +19,8 @@ Forge is a full task lifecycle skill. It takes a task from raw documents to fini
 Before asking for documents, check if a `forge-state.md` already exists in the Forge working directory:
 
 1. Search for `forge-state.md` in `~/.copilot/foundry/*/` (scan all task directories)
-2. If found, read it and validate:
+2. If multiple state files found, filter by repo root match (compare recorded cwd in state file to current working directory). If multiple remain, present a numbered list sorted by last-modified time and let the user choose.
+3. If found (single match or user-selected), read it and validate:
    - Does the branch still exist? (`git branch --list <branch>`)
    - Are the split/iteration counters consistent?
    - Is the working tree clean? (`git status --porcelain`)
@@ -148,7 +149,7 @@ Extract and internalize the following from each document.
   - If missing AND complexity is large → `[BLOCKING]` Design doc is required for full ceremony. Provide one or ask Crucible to generate one.
   - If missing AND complexity is small → not blocking, skip silently
 - [ ] Task splits are present and meaningfully scoped
-  - If missing → `[MISSING]` warn, offer to create splits yourself or ask user to add them
+  - If missing → `[BLOCKING]` — cannot execute without at least one split. Forge requires splits to dispatch code agents.
 - [ ] Branch name is specified
   - If missing → `[MISSING]` warn, offer to define one yourself or ask user
 - [ ] File-level breakdown exists per split

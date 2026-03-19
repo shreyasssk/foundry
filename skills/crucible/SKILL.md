@@ -568,6 +568,7 @@ If complexity is small (plan-only mode), only checks 1-5 apply. Do not attempt t
 - Plan structural checks 1-5 pass (≥ 2 of 3 models agree on each check — not "all 3 must be identical")
 - Design doc structural checks 6-8 pass, same ≥ 2/3 threshold (large tasks only)
 - No model introduced NEW splits or removed existing ones from round N-1
+- Execution config fields match across ≥ 2/3 models: `Base Branch`, `Branch Prefix`, `Split Strategy`, `Split Relationship` (these are user-provided values that models should pass through unchanged)
 
 If models say converged but structural checks fail → override: NOT converged, continue looping.
 If structural checks pass but models say not converged → accept convergence (models are being overly cautious).

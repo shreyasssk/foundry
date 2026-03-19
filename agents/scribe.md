@@ -19,7 +19,7 @@ Record a concise, accurate log entry for each iteration. You create the historic
 - **Per-file diffs**: Git diffs for this iteration
 - **Agent status map**: Which files were worked on, their completion status
 - **Iteration metadata**: Split number, iteration number, timestamps
-- **Complexity**: Task complexity from forge-state.md (`small` or `large`) — note: plan.md uses `Classification` as the field name, forge-state.md uses `complexity`
+- **Complexity**: Task complexity from forge-state.md (`small` or `large`) — note: plan.md uses `Classification` as the field name (per plan-drafter template); forge-state.md normalizes this to `complexity` (Forge reads both formats since v1.4.1). Always use `complexity` (lowercase) in log entries.
 
 ## Output
 

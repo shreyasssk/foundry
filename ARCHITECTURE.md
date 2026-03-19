@@ -98,6 +98,8 @@ All agent dispatches use explicit `task(agent_type="foundry/<name>")` calls.
 
 > **Gemini sync constraint:** This constraint applies to **Crucible fleet dispatch only** (when dispatching plan-drafter/design-drafter agents with Gemini). Forge code-agent dispatch is unaffected — code agents use the default model and don't receive a model parameter.
 
+> **Fallback model:** `claude-sonnet-4.6` — used when any primary model fails (retry + fallback exhausted). Also used as Forge code-agent fallback.
+
 ---
 
 ## Task Slug Algorithm
@@ -118,9 +120,9 @@ The task slug is derived from the **task name** (the plan's `# ` title or `## Ov
 This slug is also used for checkpoint tags, forge-state references, and the shared working directory.
 
 **Checkpoint tag format:** `forge-checkpoint--<slug>--split-<N>` where:
-- `<slug>` — task slug derived above (branch `/` replaced with `-` to avoid git ref conflicts)
+- `<slug>` — slugified **branch name** (all `/` replaced with `-`), NOT the task-name slug. Example: branch `user/johndoe/fix-auth` → slug `user-johndoe-fix-auth`
 - `<N>` — split number (1-indexed; omitted for single-branch mode)
-- Example: `forge-checkpoint--add-oauth2-authentication--split-2`
+- Example: `forge-checkpoint--user-johndoe-fix-auth--split-2`
 
 ---
 
@@ -178,7 +180,7 @@ After complexity assessment, Crucible evaluates whether the task needs multiple 
 ## Safety Features
 
 - **Adaptive convergence** (Crucible) — plain-language convergence checks, never forces premature consensus
-- **Hard caps** — 10 rounds in Crucible, 10 iterations per split in Forge, 5 rounds of deep review **per split**
+- **Hard caps** — 10 rounds in Crucible, 10 iterations per split in Forge, 5 rounds of deep review **per split**, 5 build-fix attempts **per split**
 - **Resume support** — both skills track state and can pick up where they left off
 - **Per-split build gate** (Forge) — full build per split after deep review passes, before commit
 - **Git safety** (Forge) — fetch/rebase before push, specific file staging, user-specified base branch
