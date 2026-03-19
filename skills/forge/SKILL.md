@@ -1267,7 +1267,7 @@ Do not merge. Hand off to the user.
 - Build gate and deep review run per-split (after verifiers approve, before commit) — not after all splits.
 - Deep review runs locally against the split's uncommitted diff — no PR required.
 - Always read base branch from the plan's `## Execution Config` section — never auto-detect or hardcode main/master. If execution config is missing, fall back to prompting the user once.
-- Read split-relationship (chained/independent) from the plan's `## Execution Config` section; only prompt if the section is missing — independent splits should be separate Forge executions.
+- Read split-relationship (chained/independent) from the plan's `## Execution Config` section; only prompt if the section is missing — independent splits execute sequentially within a single Forge invocation (each branching from $BASE_BRANCH).
 - Always dispatch agents explicitly using task(agent_type='foundry/<agent-name>') — never use vague instructions.
 - Each split gets its own branch (<task-branch>/split-N), chained from the previous split OR from the base branch (if independent) — UNLESS `split-strategy` is `single`, in which case use `<task-branch>` directly without `/split-N` suffix.
 - Read branch naming preference/prefix from the plan's `## Execution Config` section; only prompt if the section is missing — never duplicate the prompt in Phase 6.

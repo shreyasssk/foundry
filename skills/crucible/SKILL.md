@@ -53,7 +53,7 @@ To refine a plan with Crucible, provide:
 3. Existing plan     — (optional) if you already have a plan.md, provide it for validation
 ```
 
-> **Design doc question is complexity-gated — only prompted for medium+ tasks.** Do NOT ask about design docs during initial intake. After collecting items 1-3, proceed to § Complexity Assessment. If complexity is assessed as `large`, THEN ask: "Do you want a design document? (Recommended for complex tasks.)" If complexity is `small`, skip the design doc question entirely — no mention, no prompt. This prevents overwhelming users with unnecessary choices on simple tasks.
+> **Design doc question is complexity-gated — only prompted for large tasks.** Do NOT ask about design docs during initial intake. After collecting items 1-3, proceed to § Complexity Assessment. If complexity is assessed as `large`, THEN ask: "Do you want a design document? (Recommended for complex tasks.)" If complexity is `small`, skip the design doc question entirely — no mention, no prompt. This prevents overwhelming users with unnecessary choices on simple tasks.
 
 All Foundry working files and outputs live **outside the repo** at `~/.copilot/foundry/<task-slug>/`. Nothing is written to the source directory. Forge reuses the same directory.
 

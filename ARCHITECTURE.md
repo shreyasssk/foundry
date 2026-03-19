@@ -84,7 +84,7 @@ All agent dispatches use explicit `task(agent_type="foundry/<name>")` calls.
 | `architecture-verifier` | `task(agent_type="foundry/architecture-verifier")` | Checks code against architecture (at split completion, large tasks only) |
 | `scribe` | `task(agent_type="foundry/scribe")` | Conditional task logging |
 
-> **Note:** The deep review step in Forge Phase 6 uses external agents from the **deep-review** plugin (`deep-review/architect`, `deep-review/advocate`, `deep-review/skeptic`) — these are NOT foundry agents.
+> **Note:** The deep review step in Forge Phase 6 uses external agents from the **deep-review** plugin (`deep-review:architect`, `deep-review:advocate`, `deep-review:skeptic`) — these are NOT foundry agents.
 
 ---
 

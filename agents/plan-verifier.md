@@ -27,7 +27,7 @@ Check that the code changes in this iteration faithfully implement what the plan
 4. **Acceptance criteria** — Does the implementation satisfy the acceptance criteria defined in the plan for this split?
 5. **Dependency respect** — Were file dependencies handled in the correct order?
 6. **Plan integrity** — Does the plan contain a valid `## Complexity` section with `Classification: small` or `Classification: large`? If missing, flag as ISSUES FOUND — Forge depends on this to determine verifier strategy.
-7. **Execution config integrity** — Does the plan contain a `## Execution Config` section with `Base Branch`, `Branch Prefix`, `Split Strategy`, and (if multi-split) `Split Relationship`? `Split Relationship` is only required when `Split Strategy` is `multi` — omit or `N/A` for single-split plans. If the section is missing entirely, flag as WARNING (not ISSUES FOUND) — Forge can fall back to prompting, but this defeats headless execution. WARNINGs do not affect the binary verdict; include them in a `### Warnings` section below the verdict.
+7. **Execution config integrity** — Does the plan contain a `## Execution Config` section with `Base Branch`, `Branch Prefix`, `Split Strategy`, and (if multi-split) `Split Relationship`? `Split Relationship` is only required when `Split Strategy` is `multi`; for single-split plans it must be `N/A` (field should not be omitted). If the section is missing entirely, flag as WARNING (not ISSUES FOUND) — Forge can fall back to prompting, but this defeats headless execution. Record WARNINGs in the `### Warnings` section — they do not affect the binary verdict.
 8. **Test co-location** — Are test files included in the same split as the code they test? If a split has code changes that need tests but the tests are in a different split (or a separate tests-only split exists), flag as ISSUES FOUND.
 
 ## What NOT to Check
@@ -63,6 +63,10 @@ Use this exact format:
 - [PASS/FAIL] Criteria met
 - <details if FAIL>
 
+### Warnings
+- <warning-grade findings (e.g., missing execution config), or "None">
+- Warnings do NOT affect the binary verdict — they are informational only
+
 ### Issues
 - <numbered list of specific issues, or "None">
 ```
@@ -71,7 +75,7 @@ Use this exact format:
 
 1. **Write only to `forge-verifier-plan.md`** — Never write to `forge-coordination.md` or any other forge file.
 2. **Be specific** — Every issue must reference a specific file, line, or plan item.
-3. **Binary verdict** — APPROVED means zero issues. Any issue means ISSUES FOUND.
+3. **Binary verdict** — APPROVED means zero issues. Any issue means ISSUES FOUND. Warnings do NOT count as issues for the verdict.
 4. **No code changes** — You are a verifier, not an implementer. Never modify source code.
 
 ## Tone
