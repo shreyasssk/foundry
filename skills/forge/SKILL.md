@@ -353,6 +353,7 @@ if ($slug.Length -gt 50) {
     if ($lastDash -gt 0) { $slug = $truncated.Substring(0, $lastDash) } else { $slug = $truncated }
 }
 $slug = $slug.TrimEnd('-')
+if ([string]::IsNullOrWhiteSpace($slug)) { $slug = "untitled-task-" + (Get-Date -Format "yyyyMMdd-HHmm") }
 # (Full algorithm specification: see § Task Slug Algorithm in ARCHITECTURE.md)
 $FOUNDRY_DIR = Join-Path $HOME ".copilot" "foundry" $slug
 New-Item -ItemType Directory -Path $FOUNDRY_DIR -Force | Out-Null
@@ -367,6 +368,7 @@ if [ ${#slug} -gt 50 ]; then
   [ -n "$trimmed" ] && slug="$trimmed"  # guard: keep full slug if no dash found
 fi
 slug="${slug%-}"
+[ -z "$slug" ] && slug="untitled-task-$(date +%Y%m%d-%H%M)"
 # (Full algorithm specification: see § Task Slug Algorithm in ARCHITECTURE.md)
 FOUNDRY_DIR="$HOME/.copilot/foundry/$slug"
 mkdir -p "$FOUNDRY_DIR"
@@ -544,7 +546,7 @@ task-branch: <branch-prefix from plan's ## Execution Config>
 base-branch: <base-branch from plan's ## Execution Config>
 current-branch: <task-branch>              ← if single
                 <task-branch>/split-1      ← if multi
-split-relationship: <chained|independent from plan's ## Execution Config → Split Relationship>  # omit or set "independent" for single-branch
+split-relationship: <chained|independent from plan's ## Execution Config → Split Relationship>  # set to "N/A" for single-branch mode
 ---
 
 ## Dependency Graph
@@ -862,12 +864,14 @@ SPLIT START (put the clay on the wheel)
        3. Dispatch one set of 3 deep-review agents PER BATCH
        4. Synthesize results across batches
 
-       Dispatch three parallel agents:
+       Dispatch three parallel agents using the `deep-review` plugin (NOT the built-in `code-review` agent type):
        ```
-       task(agent_type="deep-review/architect", prompt="Review this diff for direction and design soundness:\n\n[diff contents]")
-       task(agent_type="deep-review/advocate", prompt="Defend this implementation — find strengths and justify decisions:\n\n[diff contents]")
-       task(agent_type="deep-review/skeptic", prompt="Attack this code — find flaws, risks, and weaknesses:\n\n[diff contents]")
+       task(agent_type="deep-review:architect", prompt="Review this diff for direction and design soundness:\n\n[diff contents]")
+       task(agent_type="deep-review:advocate", prompt="Defend this implementation — find strengths and justify decisions:\n\n[diff contents]")
+       task(agent_type="deep-review:skeptic", prompt="Attack this code — find flaws, risks, and weaknesses:\n\n[diff contents]")
        ```
+
+       > ⚠️ **MANDATORY**: Always use `deep-review:architect`, `deep-review:advocate`, and `deep-review:skeptic` agent types from the `deep-review` plugin. Do NOT substitute with the built-in `code-review` agent type. If `code-review` was run separately (e.g., during RALPH), it does NOT replace the deep-review step — deep-review MUST still run. The deep-review loop continues until all three perspectives report no CRITICAL issues.
 
        Wait for all three to complete. Write findings to `forge-coordination.md` under `## Deep Review — Split [N] Round [R]`.
 
@@ -1026,17 +1030,9 @@ When the 10-iteration hard cap is reached without all verifiers approving — th
 
 After all splits are done (each split has passed verifiers, deep review, and build gate):
 
-1. Scribe writes a final summary to `forge-task-log.md`:
+1. Invoke Scribe to write a final summary to `forge-task-log.md` (use the Scribe agent's `## Task Complete` template — do NOT use an inline template here; Scribe is the single source of truth for entry formatting):
    ```
-   ## All Splits Complete
-   Finished  : [ISO timestamp]
-   Total time: [duration]
-   Strategy  : [single | multi]
-   Splits    : [N completed / N total]
-   Commits   : [N]
-
-   Summary:
-   [3-6 sentences: what was built, key decisions made during execution, anything flagged or skipped]
+   task(agent_type="foundry/scribe", prompt="Write the Task Complete entry. Strategy: [single|multi], Complexity: [small|large], Splits: [N/N], Commits: [N], Summary: [what was built, key decisions]")
    ```
 
 2. Proceed directly to Phase 7 (Summary and Cleanup).
@@ -1119,6 +1115,7 @@ Write execution summary to `forge-summary.md`:
    ## Merge Order
    Merge in order: split-1 → split-2 → ... → split-N
    Each split branch chains from the previous.
+   (If independent: Merge in any order — splits are independent, each branched from base.)
 
    ## Deep Review
    Rounds: [N]
@@ -1170,17 +1167,17 @@ Write execution summary to `forge-summary.md`:
 
    **Coordination file cleanup:** Before deleting working files, archive `forge-coordination.md` entries. If the file exists, keep only the last 2 iteration sections (by `---` delimiters) in the active file. Move older sections to `forge-coordination-archive.md` in `$FOUNDRY_DIR`. This preserves recent context for debugging while preventing unbounded growth.
 
-   Delete all forge working files in `$FOUNDRY_DIR` except outputs (`forge-summary.md` and `forge-task-log.md`):
+   Delete all forge working files in `$FOUNDRY_DIR` except outputs (`forge-summary.md`, `forge-task-log.md`, and `forge-coordination-archive.md`):
 
    ```powershell
    # PowerShell — clean up working files, keep outputs
    Get-ChildItem -Path $FOUNDRY_DIR -Filter "forge-*" |
-     Where-Object { $_.Name -notmatch '^forge-(summary|task-log)\.md$' } |
+     Where-Object { $_.Name -notmatch '^forge-(summary|task-log|coordination-archive)\.md$' } |
      Remove-Item -Force
    ```
    ```bash
    # Bash
-   find "$FOUNDRY_DIR" -maxdepth 1 -name 'forge-*' ! -name 'forge-summary.md' ! -name 'forge-task-log.md' -delete
+   find "$FOUNDRY_DIR" -maxdepth 1 -name 'forge-*' ! -name 'forge-summary.md' ! -name 'forge-task-log.md' ! -name 'forge-coordination-archive.md' -delete
    ```
 
    Log what was cleaned: `Cleaned up [N] working files in $FOUNDRY_DIR. Kept forge-summary.md and forge-task-log.md.`
@@ -1191,29 +1188,29 @@ Write execution summary to `forge-summary.md`:
    # PowerShell — scope to current task slug to avoid deleting other sessions' tags
    $taskSlug = "<slugified-task-branch>"  # same slug used when creating checkpoint tags
    git tag -l "forge-checkpoint--$taskSlug*" | ForEach-Object {
-       git tag -d $_
        $pushed = git push origin --delete $_ 2>$null
        if ($LASTEXITCODE -ne 0) {
            Write-Host "⚠️ Failed to delete remote tag $_  — will retry once"
            Start-Sleep -Seconds 2
            git push origin --delete $_ 2>$null  # single retry
        }
+       git tag -d $_
    }
    ```
    ```bash
    # Bash — scope to current task slug
    TASK_SLUG="<slugified-task-branch>"
    git tag -l "forge-checkpoint--${TASK_SLUG}*" | while read -r tag; do
-       git tag -d "$tag"
        if ! git push origin --delete "$tag" 2>/dev/null; then
            echo "⚠️ Failed to delete remote tag $tag — will retry once"
            sleep 2
            git push origin --delete "$tag" 2>/dev/null  # single retry
        fi
+       git tag -d "$tag"
    done
    ```
 
-   **Atomicity note:** Always delete the remote tag BEFORE the local tag if ordering matters for resume safety. The commands above delete local first for simplicity — if the remote push fails, the local tag is already gone but the remote is still present, which is safe (the tag is still discoverable). Never delete local tags in bulk without attempting the remote push — a partial cleanup where local tags are gone but remote tags remain is recoverable; the reverse is not.
+   **Atomicity note:** Always delete the remote tag BEFORE the local tag for resume safety. If the remote push fails, the local tag is still present so the tag is discoverable on retry. Never delete local tags in bulk without attempting the remote push first — a partial cleanup where remote tags are gone but local tags remain is recoverable; the reverse is not.
 
    Log: `Cleaned up [N] checkpoint tags.`
 
@@ -1259,3 +1256,4 @@ Do not merge. Hand off to the user.
 - When extending the hard cap, always persist the new value to `hard-cap-iterations` in `forge-state.md` before continuing.
 - When the deep review diff exceeds ~80k characters, chunk it into per-file batches and run parallel deep review agents per batch, then synthesize.
 - Always clean up checkpoint tags and working files at task completion.
+- Deep review MUST use the `deep-review` plugin agents (`deep-review:architect`, `deep-review:advocate`, `deep-review:skeptic`) — NEVER substitute with the built-in `code-review` agent type. If `code-review` was run independently, deep-review still runs. The deep-review loop is mandatory and continues until all three perspectives report no CRITICAL issues.

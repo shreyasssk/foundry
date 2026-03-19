@@ -29,9 +29,10 @@ jobs:
           else
             COMMITS=$(git log --pretty=format:"- %s" ${PREV_TAG}..HEAD)
           fi
-          echo "COMMITS<<EOF" >> $GITHUB_OUTPUT
+          DELIMITER="COMMITS_$(openssl rand -hex 8)"
+          echo "COMMITS<<$DELIMITER" >> $GITHUB_OUTPUT
           echo "$COMMITS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "$DELIMITER" >> $GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

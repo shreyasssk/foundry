@@ -139,6 +139,20 @@ Record the decision. This sets the `complexity` field in the output plan:
 
 Store in `crucible-state.md` as `complexity: small|large` and `generate-design: true|false`.
 
+### Architecture Doc Gate (Large Tasks Only)
+
+If the task is classified as **LARGE** and no architecture document was provided during initial intake:
+
+```
+⚠️ This task is classified as LARGE. Forge requires an architecture document for
+large tasks to run architecture verification.
+
+Please provide an architecture document (file path, URL, or paste contents).
+Without it, Forge will block execution.
+```
+
+Re-prompt until the user provides an architecture document or explicitly opts out (in which case, log: `⚠️ User declined architecture doc for large task — Forge may block.`). Store the document reference in `crucible-state.md` as `architecture-doc: <path|none>`.
+
 ### Split Strategy Assessment
 
 After complexity is decided, assess whether the task requires multiple splits or can be completed in a single branch:
@@ -330,6 +344,7 @@ if ($slug.Length -gt 50) {
     $slug = $truncated
 }
 $slug = $slug.TrimEnd('-')
+if ([string]::IsNullOrWhiteSpace($slug)) { $slug = "untitled-task-" + (Get-Date -Format "yyyyMMdd-HHmm") }
 $FOUNDRY_DIR = Join-Path $HOME ".copilot" "foundry" $slug
 New-Item -ItemType Directory -Path $FOUNDRY_DIR -Force | Out-Null
 ```
@@ -342,6 +357,7 @@ if [ ${#slug} -gt 50 ]; then
     [ -n "$trimmed" ] && slug="$trimmed"  # guard: keep full slug if no dash found
 fi
 slug="${slug%-}"
+[ -z "$slug" ] && slug="untitled-task-$(date +%Y%m%d-%H%M)"
 FOUNDRY_DIR="$HOME/.copilot/foundry/$slug"
 mkdir -p "$FOUNDRY_DIR"
 ```
@@ -505,7 +521,7 @@ the outputs from ALL 3 models (including your own from last round) and producing
 a REVISED version.
 
 ## Previous Round Outputs
-[paste all 3 models' outputs from round N-1]
+[paste all 3 models' outputs from round N-1 — for LARGE tasks, include BOTH plan and design doc outputs from each model (6 documents total: 3 plans + 3 design docs)]
 
 ## Your Task
 1. Read all 3 outputs carefully
@@ -525,10 +541,7 @@ a REVISED version.
 
 3. Store outputs to `$FOUNDRY_DIR`: `crucible-round-N-opus.md`, `crucible-round-N-codex.md`, `crucible-round-N-gemini.md`. All intermediate and final files go to `$FOUNDRY_DIR` — never to the repository working directory.
 
-4. **Convergence Detection**: After all 3 complete, check:
-   - Did all 3 say "CONVERGED: yes"? → **Exit loop, proceed to Phase 5**
-   - Did 2/3 say converged? → Run ONE more round for the holdout
-   - Did none converge? → Continue to next round
+4. **Convergence Detection**: After all 3 complete, run structural verification FIRST, then check self-reports:
 
 ### Structural Convergence Verification
 
