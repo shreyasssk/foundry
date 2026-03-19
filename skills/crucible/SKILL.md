@@ -151,7 +151,7 @@ Please provide an architecture document (file path, URL, or paste contents).
 Without it, Forge will block execution.
 ```
 
-Re-prompt until the user provides an architecture document or explicitly opts out (in which case, log: `⚠️ User declined architecture doc for large task — Forge may block.`). Store the document reference in `crucible-state.md` as `architecture-doc: <path|none>`.
+Re-prompt until the user provides an architecture document or explicitly opts out (in which case, log: `⚠️ User declined architecture doc for large task — Forge WILL block execution without it. Proceeding with plan-only output.` and warn: "You must provide an architecture doc before running Forge for this task."). Store the document reference in `crucible-state.md` as `architecture-doc: <path|none>`.
 
 ### Split Strategy Assessment
 
@@ -564,8 +564,8 @@ If complexity is small (plan-only mode), only checks 1-5 apply. Do not attempt t
 
 **Convergence criteria** (ALL must be true):
 - ≥ 2 of 3 models self-report CONVERGED: yes
-- Plan structural checks 1-5 pass
-- Design doc structural checks 6-8 pass (large tasks only)
+- Plan structural checks 1-5 pass (≥ 2 of 3 models agree on each check — not "all 3 must be identical")
+- Design doc structural checks 6-8 pass, same ≥ 2/3 threshold (large tasks only)
 - No model introduced NEW splits or removed existing ones from round N-1
 
 If models say converged but structural checks fail → override: NOT converged, continue looping.

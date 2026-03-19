@@ -385,7 +385,7 @@ FOUNDRY_DIR="$HOME/.copilot/foundry/$slug"
 mkdir -p "$FOUNDRY_DIR"
 ```
 
-**Where does `$taskName` come from?** Read the plan's title (first `# ` heading) or the `## Overview` section's first sentence. This is the same human-readable task name that Crucible used to derive its slug.
+**Where does `$taskName` come from?** If Crucible ran first, read the slug from the existing `crucible-state.md` in `~/.copilot/foundry/*/crucible-state.md` (look for the `Slug:` field). If no Crucible state exists (user-written plan), derive the slug from the plan's title (first `# ` heading) or the `## Overview` section's first sentence — this must match the task name the user originally provided to Crucible, if Crucible was used.
 
 #### 3. Create Coordination Files
 
@@ -863,14 +863,14 @@ SPLIT START (put the clay on the wheel)
        Once all verifiers approve for this split, run deep review BEFORE committing.
        This catches issues early — before they propagate to the next split.
 
-       Generate the split's diff using BOM-free UTF-8 encoding (see § Verifier Diff Generation above for the `Write-Utf8NoBom` helper):
+       Generate the split's diff scoped to THIS SPLIT'S FILES ONLY using BOM-free UTF-8 encoding (see § Verifier Diff Generation above for the `Write-Utf8NoBom` helper):
        ```powershell
-       # PowerShell — write deep review diff to $FOUNDRY_DIR (uses Write-Utf8NoBom from verifier section)
-       Write-Utf8NoBom "$FOUNDRY_DIR/forge-deep-review-diff.patch" (git diff HEAD | Out-String)
+       # PowerShell — write deep review diff to $FOUNDRY_DIR (scoped to split's files)
+       Write-Utf8NoBom "$FOUNDRY_DIR/forge-deep-review-diff.patch" (git diff HEAD -- <file1> <file2> <fileN> | Out-String)
        ```
        ```bash
-       # Bash — write deep review diff to $FOUNDRY_DIR
-       git diff HEAD > "$FOUNDRY_DIR/forge-deep-review-diff.patch"
+       # Bash — write deep review diff to $FOUNDRY_DIR (scoped to split's files)
+       git diff HEAD -- <file1> <file2> <fileN> > "$FOUNDRY_DIR/forge-deep-review-diff.patch"
        ```
 
        **Large diff handling**: If the diff exceeds ~80,000 characters:
@@ -1128,9 +1128,9 @@ Write execution summary to `forge-summary.md`:
    [base branch name]
 
    ## Merge Order
-   Merge in order: split-1 → split-2 → ... → split-N
-   Each split branch chains from the previous.
-   (If independent: Merge in any order — splits are independent, each branched from base.)
+   <!-- Conditional: show appropriate guidance based on split relationship -->
+   [If chained]: Merge in order: split-1 → split-2 → ... → split-N. Each split branch chains from the previous.
+   [If independent]: Merge in any order — splits are independent, each branched from base.
 
    ## Deep Review
    Rounds: [N]
@@ -1196,6 +1196,8 @@ Write execution summary to `forge-summary.md`:
    ```
 
    Log what was cleaned: `Cleaned up [N] working files in $FOUNDRY_DIR. Kept forge-summary.md and forge-task-log.md.`
+
+   > **Note**: The `forge-*` glob intentionally excludes `plan.md`, `design-doc.md`, and Crucible outputs — these are preserved as task artifacts since they don't match the glob pattern.
 
 5. Auto-cleanup checkpoint tags for THIS task only (no prompts):
 

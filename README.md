@@ -74,10 +74,10 @@ Crucible will:
 Once you have a plan, hand it to Forge:
 
 ```
-Forge this. Plan is at ./plan.md, architecture doc is at ./docs/architecture.md
+Forge this. Plan is at ~/.copilot/foundry/<task-slug>/plan.md, architecture doc is at ./docs/architecture.md
 ```
 
-_(Foundry stores all working files in `~/.copilot/foundry/<task-slug>/`, not in your repository — zero repo pollution)_
+_(Foundry stores all working files in `~/.copilot/foundry/<task-slug>/`, not in your repository — zero repo pollution. If your plan is in the repo, provide its path; Forge reads from wherever you point it.)_
 
 Forge will:
 1. Read and validate the plan
