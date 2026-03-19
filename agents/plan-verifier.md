@@ -38,7 +38,9 @@ Check that the code changes in this iteration faithfully implement what the plan
 
 ## Output
 
-Write your findings to `forge-verifier-plan.md` in the Forge working directory (`$FOUNDRY_DIR`). Use this exact format:
+Write your findings to `forge-verifier-plan.md` in the Forge working directory (`$FOUNDRY_DIR`). Unlike plan-drafter/design-drafter agents (which return text for the orchestrator to write), verifier agents write directly to their output files because the Forge orchestrator reads them from disk.
+
+Use this exact format:
 
 ```markdown
 ## Plan Verifier — Split [N] Iteration [I]

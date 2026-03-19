@@ -25,7 +25,8 @@ Before asking for input, check if `crucible-state.md` exists in the Crucible wor
    - Is the round counter consistent?
    - Are intermediate files still present?
    - Is the task description still available?
-3. If valid, present to user:
+   - Does the saved repo root (if recorded) match the current working directory's repo? If not, skip this state file.
+3. If valid and repo matches (or no repo recorded), present to user:
    ```
    Found existing Crucible state:
      Task      : <task summary>
@@ -463,7 +464,7 @@ Collect outputs from all agents (3 plan-drafters + up to 3 design-drafters if co
    ```
    ⚠️ [model] failed (retry + fallback exhausted). Proceeding with 2-model convergence.
    ```
-   With 2 models, convergence requires BOTH models to agree on all structural checks (since ≥2 of 2 is trivially true, explicit unanimous agreement is required).
+   With 2 models, convergence requires BOTH models to agree on all structural checks (since ≥2 of 2 is trivially true, explicit unanimous agreement is required). Note: the ≥2/3 threshold in the structural convergence criteria (Phase 4) becomes 2/2 (unanimous) in degraded mode.
 4. If 2+ models fail, STOP and ask the user — 1-model output is not a valid convergence.
 
 Store each model's output in `$FOUNDRY_DIR`:

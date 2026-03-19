@@ -279,10 +279,9 @@ This prevents command injection if a malicious plan.md contains shell metacharac
   All changes will be committed to a single branch without /split-N suffixes.
 ```
 
-**If split relationship is `independent`** (only applies when multi): Forge executes split 1 in this invocation. Each remaining split must be executed by invoking Forge separately. Log and display:
+**If split relationship is `independent`** (only applies when multi): Forge executes ALL splits sequentially in this invocation (one split completes before the next begins). Each split branches from the base branch (not from previous splits). Log and display:
 ```
-ℹ️ Independent split strategy: executing split 1 of [N]. Independent splits execute sequentially
-   in the current implementation (one split completes before the next begins). Each split branches
+ℹ️ Independent split strategy: executing [N] splits sequentially. Each split branches
    from the base branch. Parallel execution across separate Forge processes is a future enhancement.
 ```
 
@@ -1204,7 +1203,8 @@ Write execution summary to `forge-summary.md`:
    ```powershell
    # PowerShell — scope to current task slug to avoid deleting other sessions' tags
    $taskBranchSlug = "<slugified-task-branch>"  # NOTE: checkpoint tags use slugified BRANCH name, not task-name slug
-   git tag -l "forge-checkpoint--$taskBranchSlug*" | ForEach-Object {
+   # Use precise glob: add -- delimiter to prevent matching other tasks with similar prefixes
+   git tag -l "forge-checkpoint--${taskBranchSlug}" -l "forge-checkpoint--${taskBranchSlug}--split-*" | ForEach-Object {
        $pushed = git push origin --delete $_ 2>$null
        if ($LASTEXITCODE -ne 0) {
            Write-Host "⚠️ Failed to delete remote tag $_  — will retry once"
@@ -1217,7 +1217,8 @@ Write execution summary to `forge-summary.md`:
    ```bash
    # Bash — scope to current task slug
    TASK_SLUG="<slugified-task-branch>"
-   git tag -l "forge-checkpoint--${TASK_SLUG}*" | while read -r tag; do
+   # Use precise glob: match exact single-branch tag OR --split-* suffix to prevent cross-task deletion
+   { git tag -l "forge-checkpoint--${TASK_SLUG}" ; git tag -l "forge-checkpoint--${TASK_SLUG}--split-*" ; } | sort -u | while read -r tag; do
        if ! git push origin --delete "$tag" 2>/dev/null; then
            echo "⚠️ Failed to delete remote tag $tag — will retry once"
            sleep 2

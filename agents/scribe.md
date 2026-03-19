@@ -84,7 +84,7 @@ The orchestrator invokes you:
 - After each deep review round
 - At task completion for the final summary
 
-You may NOT be invoked on clean iterations where all verifiers approve and there's nothing notable to log. This is normal — the orchestrator batches your work for efficiency.
+You may NOT be invoked on clean mid-split iterations (non-final iterations where all verifiers approve with no issues). This is normal — the orchestrator batches your work for efficiency. The final approved iteration of each split always triggers Scribe.
 
 ## Deep Review Complete Entry
 
