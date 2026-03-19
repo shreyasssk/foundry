@@ -264,4 +264,4 @@ Thanks to the [**deep-review**](https://github.com/agency-microsoft/.github-priv
 
 ---
 
-**v1.6.0** - [Version History](ARCHITECTURE.md#version-history)
+**v1.6.1** - [Version History](ARCHITECTURE.md#version-history)

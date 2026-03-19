@@ -264,7 +264,7 @@ Validation rules:
   Branch Prefix  : must match ^[\w\-\/\.]+$  (same pattern)
                    AND must NOT contain ".." (prevents path traversal)
   Split Strategy : must be exactly "single" or "multi"
-  Split Relationship : must be exactly "chained" or "independent"
+  Split Relationship : must be exactly "chained", "independent", or "N/A" (N/A is valid for single-branch mode)
 
 If any value fails validation:
   - Log: ⚠️ Invalid execution config value for <field>: "<raw-value>" — contains unsafe characters.
@@ -825,6 +825,8 @@ SPLIT START (put the clay on the wheel)
        Dispatch:
        ```
        task(agent_type="foundry/scribe", prompt="
+         Split: [N]
+         Iteration: [I]
          Coordination file: [contents of forge-coordination.md]
          Per-file diffs: [diffs from this iteration]
          Agent status: [current agent status map]
