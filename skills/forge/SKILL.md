@@ -28,7 +28,7 @@ Before asking for documents, check if a `forge-state.md` already exists in the F
    - Does `complexity` exist? If missing (legacy state from pre-v1.4.0), check plan for `## Complexity` section first. If plan also lacks it, prompt user: `'No complexity classification found — classify as small or large?'` Only default to `large` as absolute last resort if user is unavailable. Log: `⚠️ Pre-v1.4.0 state detected — resolved complexity to <actual> via [plan | user prompt | large fallback].`
    - Does `split-strategy` exist? If missing (pre-v1.5.0 state): first check the plan's `## Execution Config` section for a `Split Strategy` field. If found, use it. If not found in the plan either, log `⚠️ Pre-v1.5.0 state detected — cannot reliably infer split-strategy. Defaulting to multi (full ceremony). Override with user input if incorrect.` and default to `multi`.
     - Does `split-relationship` exist? If `split-strategy` is `multi` and `split-relationship` is missing: log `⚠️ split-relationship missing for multi-split state. Prompting user.` Ask user: `'Split relationship not found — chained or independent?'` Default to `chained` if user is unavailable.
-3. If valid, present to the user:
+4. If valid, present to the user:
    ```
    Found existing Forge state:
      Branch    : <branch>
@@ -150,7 +150,7 @@ Extract and internalize the following from each document.
   - If missing AND complexity is small → not blocking, skip silently
 - [ ] Task splits are present and meaningfully scoped
   - If missing → `[BLOCKING]` — cannot execute without at least one split. Forge requires splits to dispatch code agents.
-- [ ] Branch name is specified
+- [ ] Branch name is specified (in `## Execution Config` → `Branch Prefix` field)
   - If missing → `[MISSING]` warn, offer to define one yourself or ask user
 - [ ] File-level breakdown exists per split
   - If missing → `[BLOCKING]` — cannot dispatch per-file code agents without file assignments. Request plan update before proceeding.
@@ -436,6 +436,7 @@ All changes go on one branch — no `/split-N` suffixes. The branch name IS the 
 
 ```powershell
 # PowerShell — single branch, resume-safe
+git fetch origin
 $taskBranch = "$BRANCH_PREFIX"
 git checkout $taskBranch 2>$null
 if ($LASTEXITCODE -ne 0) {
@@ -447,6 +448,7 @@ if ($LASTEXITCODE -ne 0) {
 ```
 ```bash
 # Bash — single branch, resume-safe
+git fetch origin
 git checkout $BRANCH_PREFIX 2>/dev/null \
   || git checkout -b $BRANCH_PREFIX origin/$BRANCH_PREFIX 2>/dev/null \
   || git checkout -b $BRANCH_PREFIX origin/$BASE_BRANCH
@@ -631,7 +633,7 @@ Update `forge-state.md` after every step:
 
 **Multi-split mode:** Repeat for each split in order:
 
-**Important:** If the user chose "independent" splits in Phase 5, only ONE split should be executing in this Forge session. If `split-strategy` is `multi` and `split-relationship: independent` in forge-state.md, and multiple splits somehow reached Phase 6, STOP and remind the user that independent splits require separate Forge executions. (This check does NOT apply to `split-strategy: single` — single-branch mode always has one unit of work regardless of the `split-relationship` field.)
+**Important:** If the user chose "independent" splits in Phase 5, all splits execute sequentially within this single Forge invocation — each branching from `$BASE_BRANCH` independently. True parallel execution (concurrent Forge instances) is NOT supported. Do NOT launch separate Forge sessions for independent splits. (This check does NOT apply to `split-strategy: single` — single-branch mode always has one unit of work regardless of the `split-relationship` field.)
 
 ```
 SPLIT START (put the clay on the wheel)
@@ -895,10 +897,10 @@ SPLIT START (put the clay on the wheel)
        - CRITICAL issues found? → address feedback:
          1. Triage findings, group by file
          2. Identify conflicts between perspectives — flag and ask user
-         3. Re-enter RALPH loop (step 2) for affected files only
+         3. Re-enter RALPH loop (step 2) for affected files only (max 3 fix iterations per deep-review round — these do NOT count against the 10-iteration RALPH cap since verifiers already approved)
          4. After fixes, re-run deep review (regenerate diff, dispatch agents)
          5. Increment `deep-review-round` in `forge-state.md`
-       - Hard cap: 5 deep review rounds per split. If reached, pause and present remaining issues to user.
+       - Hard cap: 5 deep review rounds per split (each with up to 3 fix iterations). If reached, pause and present remaining issues to user.
 
        Update `forge-state.md`: `deep-review-round` after each round.
 
@@ -1195,7 +1197,7 @@ Write execution summary to `forge-summary.md`:
    find "$FOUNDRY_DIR" -maxdepth 1 -name 'forge-*' ! -name 'forge-summary.md' ! -name 'forge-task-log.md' ! -name 'forge-coordination-archive.md' -delete
    ```
 
-   Log what was cleaned: `Cleaned up [N] working files in $FOUNDRY_DIR. Kept forge-summary.md and forge-task-log.md.`
+   Log what was cleaned: `Cleaned up [N] working files in $FOUNDRY_DIR. Kept forge-summary.md, forge-task-log.md, and forge-coordination-archive.md.`
 
    > **Note**: The `forge-*` glob intentionally excludes `plan.md`, `design-doc.md`, and Crucible outputs — these are preserved as task artifacts since they don't match the glob pattern.
 

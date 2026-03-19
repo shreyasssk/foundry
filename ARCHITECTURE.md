@@ -94,7 +94,7 @@ All agent dispatches use explicit `task(agent_type="foundry/<name>")` calls.
 |-------|-----|----------|
 | Claude Opus | `claude-opus-4.6` | Deep reasoning, architecture |
 | GPT Codex | `gpt-5.1-codex-max` | Code-first planning |
-| Gemini Pro | `gemini-3-pro-preview` | Breadth, alternatives (**must use `mode="sync"` — fails on background dispatch**) |
+| Gemini Pro | `gemini-3-pro-preview` | Breadth, alternatives (**Crucible fleet dispatch: must use `mode="sync"`**) |
 
 > **Gemini sync constraint:** This constraint applies to **Crucible fleet dispatch only** (when dispatching plan-drafter/design-drafter agents with Gemini). Forge code-agent dispatch is unaffected — code agents use the default model and don't receive a model parameter.
 
@@ -180,7 +180,7 @@ After complexity assessment, Crucible evaluates whether the task needs multiple 
 ## Safety Features
 
 - **Adaptive convergence** (Crucible) — plain-language convergence checks, never forces premature consensus
-- **Hard caps** — 10 rounds in Crucible, 10 iterations per split in Forge, 5 rounds of deep review **per split**, 5 build-fix attempts **per split**
+- **Hard caps** — 10 rounds in Crucible, 10 iterations per split in Forge, 5 rounds of deep review **per split** (each with up to 3 fix iterations), 5 build-fix attempts **per split**
 - **Resume support** — both skills track state and can pick up where they left off
 - **Per-split build gate** (Forge) — full build per split after deep review passes, before commit
 - **Git safety** (Forge) — fetch/rebase before push, specific file staging, user-specified base branch

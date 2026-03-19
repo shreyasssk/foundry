@@ -38,7 +38,7 @@ Check that code changes match the design document's specifications — interface
 Write your findings to `forge-verifier-design.md` in the Forge working directory (`$FOUNDRY_DIR`). Use this exact format:
 
 ```markdown
-## Design Verifier — Split [N]
+## Design Verifier — Split [N] Iteration [I]
 
 ### Verdict: APPROVED | ISSUES FOUND
 

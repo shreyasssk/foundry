@@ -27,7 +27,7 @@ Check that the code changes in this iteration faithfully implement what the plan
 4. **Acceptance criteria** — Does the implementation satisfy the acceptance criteria defined in the plan for this split?
 5. **Dependency respect** — Were file dependencies handled in the correct order?
 6. **Plan integrity** — Does the plan contain a valid `## Complexity` section with `Classification: small` or `Classification: large`? If missing, flag as ISSUES FOUND — Forge depends on this to determine verifier strategy.
-7. **Execution config integrity** — Does the plan contain a `## Execution Config` section with `Base Branch`, `Branch Prefix`, `Split Strategy`, and (if multi-split) `Split Relationship`? If missing, flag as WARNING — Forge can fall back to prompting, but this defeats headless execution. Plan-drafter should always emit this section.
+7. **Execution config integrity** — Does the plan contain a `## Execution Config` section with `Base Branch`, `Branch Prefix`, `Split Strategy`, and (if multi-split) `Split Relationship`? `Split Relationship` is only required when `Split Strategy` is `multi` — omit or `N/A` for single-split plans. If the section is missing entirely, flag as WARNING (not ISSUES FOUND) — Forge can fall back to prompting, but this defeats headless execution. WARNINGs do not affect the binary verdict; include them in a `### Warnings` section below the verdict.
 8. **Test co-location** — Are test files included in the same split as the code they test? If a split has code changes that need tests but the tests are in a different split (or a separate tests-only split exists), flag as ISSUES FOUND.
 
 ## What NOT to Check
