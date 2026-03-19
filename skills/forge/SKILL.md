@@ -761,8 +761,8 @@ SPLIT START (put the clay on the wheel)
        }
        # Stage new (CREATE) files so git diff HEAD can see them
        git add --intent-to-add <file1> <file2>  # for all files assigned to this split
-       Write-Utf8NoBom "$FOUNDRY_DIR/forge-diff-file1.patch" (git diff HEAD -- <file1> | Out-String)
-       Write-Utf8NoBom "$FOUNDRY_DIR/forge-diff-file2.patch" (git diff HEAD -- <file2> | Out-String)
+       Write-Utf8NoBom "$FOUNDRY_DIR/forge-diff-file1.patch" ([String]::Join("`n", (git diff HEAD -- <file1>)))
+       Write-Utf8NoBom "$FOUNDRY_DIR/forge-diff-file2.patch" ([String]::Join("`n", (git diff HEAD -- <file2>)))
        ```
        ```bash
        # Bash — write verifier diffs to $FOUNDRY_DIR (not repo root)
@@ -870,7 +870,7 @@ SPLIT START (put the clay on the wheel)
        Generate the split's diff scoped to THIS SPLIT'S FILES ONLY using BOM-free UTF-8 encoding (see § Verifier Diff Generation above for the `Write-Utf8NoBom` helper):
        ```powershell
        # PowerShell — write deep review diff to $FOUNDRY_DIR (scoped to split's files)
-       Write-Utf8NoBom "$FOUNDRY_DIR/forge-deep-review-diff.patch" (git diff HEAD -- <file1> <file2> <fileN> | Out-String)
+       Write-Utf8NoBom "$FOUNDRY_DIR/forge-deep-review-diff.patch" ([String]::Join("`n", (git diff HEAD -- <file1> <file2> <fileN>)))
        ```
        ```bash
        # Bash — write deep review diff to $FOUNDRY_DIR (scoped to split's files)

@@ -386,7 +386,7 @@ Read existing codebase structure:
 
 - Discover project files using cross-platform commands:
   - **Preferred**: Use `git ls-files` to list tracked files (respects `.gitignore`, no limit): `git ls-files -- '*.ts' '*.cs' '*.py' '*.go' '*.java' '*.rs'`
-  - **Windows fallback (PowerShell)**: `Get-ChildItem -Recurse -Include *.ts,*.cs,*.py,*.go,*.java,*.rs | Select-Object -First 500 FullName`
+  - **Windows fallback (PowerShell)**: `Get-ChildItem -Recurse -Include *.ts,*.cs,*.py,*.go,*.java,*.rs | Select-Object -First 500 -ExpandProperty FullName`
   - **Unix fallback**: `find . -type f \( -name "*.ts" -o -name "*.cs" -o -name "*.py" -o -name "*.go" -o -name "*.java" -o -name "*.rs" \) | head -500`
   - Or use the `glob` tool if available: `**/*.{ts,cs,py,go,java,rs}`
   - For very large repos (>500 files), focus on the directories most relevant to the task rather than the full tree

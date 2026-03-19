@@ -113,7 +113,7 @@ The task slug is derived from the **task name** (the plan's `# ` title or `## Ov
 5. Trim leading/trailing hyphens
 6. If empty after processing, use fallback `untitled-task-<YYYYMMDD-HHMM>`
 7. Truncate to **50 characters** — if the transformed slug exceeds 50 characters, truncate at the last complete word boundary that fits within 50 characters. If the first word exceeds 50 chars, hard-truncate at 50. Example: `implement-user-authentication-for-the-new-dashboard-feature` → `implement-user-authentication-for-the-new` (41 chars, truncated at last word boundary ≤50).
-8. Result: `add-oauth2-authentication`
+8. Result: e.g., `implement-user-authentication-for-the-new` or `add-oauth2-authentication`
 
 > **Canonical source:** Both Crucible and Forge derive the slug from the task name using this algorithm. The slug is recorded in `crucible-state.md` and `forge-state.md` so downstream consumers never need to re-derive it.
 
