@@ -336,7 +336,8 @@ All Foundry files (Crucible and Forge) live **outside the repo** in a shared dir
 
 ```powershell
 # PowerShell — truncate at last whole word boundary within 50 chars
-$slug = ($taskName -replace '[^a-zA-Z0-9_-]', '-' -replace '-+', '-').ToLower().Trim('-')
+$slug = ($taskName -replace '[^a-zA-Z0-9_-]', '-')
+$slug = ($slug -replace '-+', '-').ToLower().Trim('-')
 if ($slug.Length -gt 50) {
     $truncated = $slug.Substring(0, 50)
     $lastDash = $truncated.LastIndexOf('-')

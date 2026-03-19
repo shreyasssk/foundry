@@ -238,7 +238,7 @@ Extract from the plan's `## Execution Config` section:
 - `Branch Prefix` → store as `$BRANCH_PREFIX`
 - `Split Strategy` → store as `$SPLIT_STRATEGY` (single or multi; default: multi)
 - `Split Relationship`:
-  - If `$SPLIT_STRATEGY` is `single`: set `$SPLIT_RELATIONSHIP = "N/A"` — skip reading this field (plan-drafter omits it for single-split plans)
+  - If `$SPLIT_STRATEGY` is `single`: set `$SPLIT_RELATIONSHIP = "N/A"` — the plan-drafter always emits `Split Relationship: N/A` for single-split plans
   - If `$SPLIT_STRATEGY` is `multi`: read `Split Relationship` from `## Execution Config` (required) → store as `$SPLIT_RELATIONSHIP` (chained or independent)
 
 **If `## Execution Config` is missing** (e.g., user-written plan without Crucible):
@@ -317,8 +317,8 @@ Before starting the loop:
 
 #### 1. Environment Preflight Checks
 
-```bash
-# Verify clean working tree
+```
+# Verify clean working tree (shell-agnostic — works in both PowerShell and Bash)
 git status --porcelain
 # If output is non-empty → STOP, ask user to stash or commit
 
@@ -326,6 +326,16 @@ git status --porcelain
 git ls-remote --exit-code origin
 # If fails → STOP, ask user to check network/auth
 
+# Define Write-Utf8NoBom helper (needed for diff generation in Steps 5 and 8)
+```
+```powershell
+function Write-Utf8NoBom($path, $content) {
+    if ($PSVersionTable.PSVersion.Major -ge 7) {
+        $content | Out-File -Encoding utf8NoBOM $path
+    } else {
+        [IO.File]::WriteAllText($path, $content, [Text.UTF8Encoding]::new($false))
+    }
+}
 ```
 
 If any preflight check fails, do NOT proceed. Report the failure and wait for the user.
@@ -345,7 +355,8 @@ Derive the slug from the **task name** (same source as Crucible) — extract fro
 
 ```powershell
 # PowerShell — derive slug from task name (must match Crucible's algorithm)
-$slug = ($taskName -replace '[^a-zA-Z0-9_-]', '-' -replace '-+', '-').ToLower().Trim('-')
+$slug = ($taskName -replace '[^a-zA-Z0-9_-]', '-')
+$slug = ($slug -replace '-+', '-').ToLower().Trim('-')
 # Truncate at the LAST whole word boundary that fits within 50 characters
 if ($slug.Length -gt 50) {
     $truncated = $slug.Substring(0, 50)
@@ -746,11 +757,15 @@ SPLIT START (put the clay on the wheel)
                [IO.File]::WriteAllText($path, $content, [Text.UTF8Encoding]::new($false))
            }
        }
+       # Stage new (CREATE) files so git diff HEAD can see them
+       git add --intent-to-add <file1> <file2>  # for all files assigned to this split
        Write-Utf8NoBom "$FOUNDRY_DIR/forge-diff-file1.patch" (git diff HEAD -- <file1> | Out-String)
        Write-Utf8NoBom "$FOUNDRY_DIR/forge-diff-file2.patch" (git diff HEAD -- <file2> | Out-String)
        ```
        ```bash
        # Bash — write verifier diffs to $FOUNDRY_DIR (not repo root)
+       # Stage new (CREATE) files so git diff HEAD can see them
+       git add --intent-to-add <file1> <file2>  # for all files assigned to this split
        git diff HEAD -- <file1> > "$FOUNDRY_DIR/forge-diff-file1.patch"
        git diff HEAD -- <file2> > "$FOUNDRY_DIR/forge-diff-file2.patch"
        ```
@@ -1186,8 +1201,8 @@ Write execution summary to `forge-summary.md`:
 
    ```powershell
    # PowerShell — scope to current task slug to avoid deleting other sessions' tags
-   $taskSlug = "<slugified-task-branch>"  # same slug used when creating checkpoint tags
-   git tag -l "forge-checkpoint--$taskSlug*" | ForEach-Object {
+   $taskBranchSlug = "<slugified-task-branch>"  # NOTE: checkpoint tags use slugified BRANCH name, not task-name slug
+   git tag -l "forge-checkpoint--$taskBranchSlug*" | ForEach-Object {
        $pushed = git push origin --delete $_ 2>$null
        if ($LASTEXITCODE -ne 0) {
            Write-Host "⚠️ Failed to delete remote tag $_  — will retry once"

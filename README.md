@@ -230,7 +230,7 @@ You always get to confirm or override the AI's recommendation.
 2. **Work item IDs work** -- Just paste the work item ID or URL; Crucible fetches the details
 3. **Don't skip Crucible for big tasks** -- Going straight to Forge with a hand-written plan works, but Crucible's 3-model convergence catches gaps you'd miss
 4. **Use Forge's resume** -- If Copilot CLI crashes mid-execution, just say "resume" and it picks up where it left off
-5. **Branch naming** -- Use your team's convention (e.g., `user/<alias>/<feature>/split-N`). For small single-branch tasks, no `/split-N` suffix is added.
+5. **Branch naming** -- Use your team's convention (e.g., `user/<alias>/<feature>`). For multi-split tasks, Forge automatically appends `/split-N`. For small single-branch tasks, no `/split-N` suffix is added.
 6. **Review the plan before forging** -- Crucible outputs `plan.md` -- read it, tweak it if needed, then hand it to Forge
 
 ---

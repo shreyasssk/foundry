@@ -20,9 +20,9 @@ jobs:
         id: changelog
         run: |
           # Get previous tag
-          PREV_TAG=$(git tag --list 'v*' --sort=-version:refname | grep -v -- '-' | sed -n '2p')
+          PREV_TAG=$(git tag --merged HEAD --list 'v*' --sort=-version:refname | grep -v -- '-' | sed -n '2p')
           if [ -z "$PREV_TAG" ]; then
-            PREV_TAG=$(git tag --list 'v*' --sort=-version:refname | sed -n '2p')
+            PREV_TAG=$(git tag --merged HEAD --list 'v*' --sort=-version:refname | sed -n '2p')
           fi
           if [ -z "$PREV_TAG" ]; then
             COMMITS=$(git log --pretty=format:"- %s" HEAD)
