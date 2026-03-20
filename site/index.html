@@ -71,6 +71,12 @@
       opacity: 0;
       animation: fadeIn 1s ease-out 0.3s forwards;
       text-align: center;
+      width: 100%;
+    }
+
+    .ascii-wrapper {
+      display: inline-block;
+      max-width: 100%;
     }
 
     .hero-the {
@@ -93,6 +99,7 @@
       font-style: normal;
       font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
       text-shadow: 0 0 10px rgba(0,255,136,0.3);
+      transform-origin: top left;
     }
 
     .tagline {
@@ -612,7 +619,20 @@
       .deep-grid { grid-template-columns: 1fr; }
       .how-flow { flex-direction: column; }
       .flow-arrow { transform: rotate(90deg); }
-      .install-box { padding: 20px 24px; }
+      .install-box { padding: 20px 16px; }
+      .ascii-art { font-size: 6.5px; line-height: 1.1; }
+      .hero-the { font-size: 10px; letter-spacing: 2px; }
+      section { padding: 50px 0; }
+      .container { padding: 0 16px; }
+      .section-title { font-size: 18px; }
+      .hero-prompt { font-size: 12px; }
+      .install-box pre { font-size: 11px; overflow-x: auto; }
+      .caution-banner, .info-banner { padding: 16px; }
+    }
+
+    @media (max-width: 420px) {
+      .ascii-art { font-size: 5px; }
+      .hero-the { font-size: 9px; }
     }
   </style>
 </head>
