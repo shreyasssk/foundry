@@ -253,19 +253,8 @@ You always get to confirm or override the AI's recommendation.
 For technical details -- phase breakdowns, agent specs, RALPH loop mechanics, safety features, and version history -- see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 Want to go deeper? The [Foundry Wiki](https://github.com/odsp-microsoft/foundry/wiki) covers the engineering behind the plugin -- how the RALPH loop works, how 3 AI models converge on a plan (harness engineering), agent specifications, safety and recovery mechanisms, and more.
-
 ---
 
-## Acknowledgments
-
-Made with <3 by **Shreyas Shivakumar** ([@shshivakumar](https://github.com/shshivakumar_microsoft)).
-
-Shoutout to **Ian De La Garza** ([@iandelagarza](https://github.com/iandelagarza)) and **Touseef Liaqat** ([@tliaqat](https://github.com/tliaqat)) — everything I've learnt about GitHub Copilot and Claude, and how to efficiently use these tools, I owe to them.
-
-Thanks to the [**deep-review**](https://github.com/agency-microsoft/.github-private/tree/main/plugins/deep-review) team for creating a splendid adversarial review skill — it powers Foundry's fleet review process and has been instrumental in catching subtle bugs across every version.
-
----
-
-Made with ❤️ by Shreyas ([@shshivakumar](https://github.com/shshivakumar_microsoft))
+Made with ❤️ by Shreyas ([@shreyasssk](https://github.com/shreyasssk))
 
 **v1.6.2** - [Version History](ARCHITECTURE.md#version-history)
