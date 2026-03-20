@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Foundry — AI-Powered Task Lifecycle for Copilot CLI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --bg-card: #0f0f18;
+      --border: #1a1a2e;
+      --text: #c0c0c0;
+      --text-dim: #606080;
+      --text-bright: #e0e0e0;
+      --green: #00ff88;
+      --green-dim: #00cc6a;
+      --amber: #ffaa00;
+      --amber-dim: #cc8800;
+      --cyan: #00ccff;
+      --red: #ff4444;
+      --purple: #aa66ff;
+      --font: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* Scanline overlay */
+    body::after {
+      content: '';
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 9999;
+      background: repeating-linear-gradient(
+        0deg, transparent, transparent 2px,
+        rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px
+      );
+    }
+
+    .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+    section { padding: 80px 0; }
+    a { color: var(--green); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ══════════ HERO ══════════ */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      position: relative;
+    }
+
+    .hero-title {
+      opacity: 0;
+      animation: fadeIn 1s ease-out 0.3s forwards;
+      text-align: center;
+    }
+
+    .hero-the {
+      display: block;
+      text-align: left;
+      color: var(--text-dim);
+      font-size: 13px;
+      font-weight: 400;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+      padding-left: 2px;
+    }
+
+    .ascii-art {
+      color: var(--green);
+      font-size: 15px;
+      line-height: 1.15;
+      white-space: pre;
+      font-style: normal;
+      font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+      text-shadow: 0 0 10px rgba(0,255,136,0.3);
+    }
+
+    .tagline {
+      margin-top: 24px;
+      font-size: 16px;
+      color: var(--text-dim);
+      opacity: 0;
+      animation: fadeIn 0.8s ease-out 1.2s forwards;
+    }
+
+    .tagline .typed {
+      color: var(--amber);
+      border-right: 2px solid var(--amber);
+      animation: blink 0.8s step-end infinite;
+    }
+
+    .hero-prompt {
+      margin-top: 40px;
+      opacity: 0;
+      animation: fadeIn 0.8s ease-out 1.8s forwards;
+    }
+
+    .prompt-line { color: var(--text-dim); font-size: 13px; }
+    .prompt-line .path { color: var(--cyan); }
+    .prompt-line .cmd { color: var(--green); }
+    .prompt-line .arg { color: var(--amber); }
+
+    .version-badge {
+      display: inline-block;
+      margin-top: 16px;
+      padding: 4px 12px;
+      border: 1px solid var(--green-dim);
+      color: var(--green);
+      font-size: 11px;
+      opacity: 0;
+      animation: fadeIn 0.8s ease-out 2.2s forwards;
+    }
+
+    .scroll-hint {
+      position: absolute;
+      bottom: 32px;
+      color: var(--text-dim);
+      font-size: 12px;
+      opacity: 0;
+      animation: fadeIn 0.8s ease-out 2.5s forwards, float 2s ease-in-out infinite 3s;
+    }
+
+    /* ══════════ CAUTION BANNER ══════════ */
+    .caution-banner {
+      background: rgba(255,68,68,0.05);
+      border: 1px solid rgba(255,68,68,0.2);
+      border-left: 3px solid var(--red);
+      padding: 20px 24px;
+      margin-bottom: 32px;
+      font-size: 12px;
+      color: var(--text);
+    }
+
+    .caution-banner .caution-title {
+      color: var(--red);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 8px;
+    }
+
+    .caution-banner p { line-height: 1.7; }
+    .caution-banner strong { color: var(--text-bright); }
+
+    .info-banner {
+      background: rgba(0,204,255,0.05);
+      border: 1px solid rgba(0,204,255,0.2);
+      border-left: 3px solid var(--cyan);
+      padding: 20px 24px;
+      font-size: 12px;
+      color: var(--text);
+    }
+
+    .info-banner .info-title {
+      color: var(--cyan);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 8px;
+    }
+
+    .info-banner p { line-height: 1.7; }
+    .info-banner strong { color: var(--text-bright); }
+
+    /* ══════════ SECTION HEADERS ══════════ */
+    .section-header { text-align: center; margin-bottom: 48px; }
+    .section-header h2 {
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+    }
+    .section-header .divider {
+      color: var(--text-dim);
+      margin-top: 8px;
+      font-size: 12px;
+    }
+
+    /* ══════════ SKILL CARDS ══════════ */
+    .skills-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    .skill-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      padding: 32px 24px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.3s, transform 0.2s;
+    }
+
+    .skill-card:hover {
+      border-color: var(--green-dim);
+      transform: translateY(-2px);
+    }
+
+    .skill-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--green), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .skill-card:hover::before { opacity: 1; }
+
+    .skill-card h3 {
+      color: var(--text-bright);
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .skill-card .subtitle {
+      color: var(--amber);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 16px;
+    }
+
+    .skill-card p { color: var(--text); font-size: 13px; }
+
+    .skill-card .phases {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .skill-card .phases span { color: var(--cyan); }
+
+    /* ══════════ HOW IT WORKS ══════════ */
+    .how-flow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
+    }
+
+    .flow-node {
+      padding: 12px 20px;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text);
+      min-width: 110px;
+      text-align: center;
+      opacity: 0;
+      transition: all 0.4s ease;
+    }
+
+    .flow-node.visible { opacity: 1; }
+
+    .flow-node.highlight {
+      border-color: var(--green-dim);
+      color: var(--green);
+    }
+
+    .flow-node .node-sub {
+      font-size: 9px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    .flow-arrow {
+      color: var(--text-dim);
+      font-size: 16px;
+      padding: 0 6px;
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+
+    .flow-arrow.visible { opacity: 1; }
+
+    /* ══════════ AGENTS ══════════ */
+    .agents-intro {
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 12px;
+      margin-bottom: 32px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+      line-height: 1.8;
+    }
+
+    .agents-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .agent-card {
+      border: 1px solid var(--border);
+      padding: 20px 16px;
+      font-size: 12px;
+      transition: border-color 0.3s;
+    }
+
+    .agent-card:hover { border-color: var(--purple); }
+
+    .agent-card .agent-name {
+      color: var(--purple);
+      font-weight: 600;
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+
+    .agent-card .agent-role {
+      color: var(--amber);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    .agent-card .agent-desc {
+      color: var(--text-dim);
+      font-size: 11px;
+      line-height: 1.6;
+    }
+
+    .agent-card .agent-desc .why {
+      color: var(--text);
+    }
+
+    .agents-wiki {
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    /* ══════════ FLEET REVIEW ══════════ */
+    .fleet-demo {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      padding: 32px;
+    }
+
+    .fleet-header {
+      color: var(--amber);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .fleet-models {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .fleet-model {
+      border: 1px solid var(--border);
+      padding: 16px;
+      text-align: center;
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    .fleet-model.animate { animation: slideUp 0.5s ease-out forwards; }
+
+    .fleet-model .model-name {
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .fleet-model .model-name.opus { color: var(--purple); }
+    .fleet-model .model-name.codex { color: var(--green); }
+    .fleet-model .model-name.gemini { color: var(--cyan); }
+
+    .fleet-model .model-score {
+      font-size: 20px;
+      font-weight: 700;
+      margin: 8px 0;
+    }
+
+    .fleet-model .model-issues {
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    .fleet-converge {
+      text-align: center;
+      padding: 16px;
+      border: 1px dashed var(--border);
+      color: var(--text-dim);
+      font-size: 12px;
+    }
+
+    .fleet-converge .arrow { color: var(--amber); }
+
+    /* ══════════ DEEP DIVE BOXES ══════════ */
+    .deep-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    .deep-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      padding: 28px 24px;
+    }
+
+    .deep-box.crucible-box { border-top: 2px solid var(--orange, #ff6622); }
+    .deep-box.forge-box { border-top: 2px solid var(--green-dim); }
+
+    .deep-box-header {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .deep-box-sub {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .deep-box-sub.crucible-sub { color: var(--amber); }
+    .deep-box-sub.forge-sub { color: var(--green); }
+
+    .deep-agents-label {
+      font-size: 10px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+    }
+
+    .deep-agent-item {
+      display: flex;
+      gap: 8px;
+      padding: 6px 0;
+      font-size: 11px;
+    }
+
+    .deep-agent-item .da-name {
+      color: var(--purple);
+      font-weight: 600;
+      min-width: 130px;
+    }
+
+    .deep-agent-item .da-role {
+      color: var(--text-dim);
+    }
+
+    .deep-step {
+      display: flex;
+      gap: 12px;
+      padding: 8px 0;
+      font-size: 11px;
+      border-bottom: 1px solid rgba(26,26,46,0.5);
+    }
+
+    .deep-step:last-child { border-bottom: none; }
+
+    .deep-step .ds-num {
+      font-weight: 600;
+      min-width: 20px;
+    }
+
+    .deep-step .ds-num.crucible-num { color: var(--amber); }
+    .deep-step .ds-num.forge-num { color: var(--green); }
+
+    .deep-step .ds-text { color: var(--text); line-height: 1.6; }
+    .deep-step .ds-text em { color: var(--cyan); font-style: normal; }
+
+    .deep-section-label {
+      font-size: 10px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 16px;
+      margin-bottom: 8px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--border);
+    }
+
+    .deep-wiki {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    /* ══════════ INSTALL ══════════ */
+    .install { text-align: center; }
+
+    .install-box {
+      display: inline-block;
+      background: var(--bg-card);
+      border: 1px solid var(--green-dim);
+      padding: 24px 48px;
+      margin: 16px 0;
+    }
+
+    .install-box code { color: var(--green); font-size: 15px; }
+
+    .install-box .copy-hint {
+      display: block;
+      margin-top: 8px;
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    .install-also {
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    .install-also code {
+      color: var(--cyan);
+      background: rgba(0,204,255,0.08);
+      padding: 2px 6px;
+    }
+
+    /* ══════════ FOOTER ══════════ */
+    footer {
+      padding: 48px 0;
+      text-align: center;
+      border-top: 1px solid var(--border);
+    }
+
+    footer .built-with { font-size: 11px; color: var(--text-dim); }
+    footer .built-with .heart { color: var(--red); }
+
+    footer .foundry-badge {
+      margin-top: 12px;
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    footer .foundry-badge span { color: var(--amber); }
+
+    /* ══════════ ANIMATIONS ══════════ */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes blink { 50% { border-color: transparent; } }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+    }
+
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+
+    /* ══════════ RESPONSIVE ══════════ */
+    @media (max-width: 700px) {
+      .hero-foundry { font-size: 40px; letter-spacing: 4px; }
+      .skills-grid { grid-template-columns: 1fr; }
+      .fleet-models { grid-template-columns: 1fr; }
+      .agents-grid { grid-template-columns: 1fr; }
+      .deep-grid { grid-template-columns: 1fr; }
+      .how-flow { flex-direction: column; }
+      .flow-arrow { transform: rotate(90deg); }
+      .install-box { padding: 20px 24px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ══════════ HERO ══════════ -->
+  <section class="hero">
+    <div class="hero-title">
+      <span class="hero-the">the</span>
+      <pre class="ascii-art">
+ ███████╗ ██████╗ ██╗   ██╗███╗   ██╗██████╗ ██████╗ ██╗   ██╗
+ ██╔════╝██╔═══██╗██║   ██║████╗  ██║██╔══██╗██╔══██╗╚██╗ ██╔╝
+ █████╗  ██║   ██║██║   ██║██╔██╗ ██║██║  ██║██████╔╝ ╚████╔╝
+ ██╔══╝  ██║   ██║██║   ██║██║╚██╗██║██║  ██║██╔══██╗  ╚██╔╝
+ ██║     ╚██████╔╝╚██████╔╝██║ ╚████║██████╔╝██║  ██║   ██║
+ ╚═╝      ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚═════╝ ╚═╝  ╚═╝   ╚═╝</pre>
+    </div>
+
+    <p class="tagline">
+      <span class="typed" id="typed-text"></span>
+    </p>
+
+    <div class="hero-prompt">
+      <p class="prompt-line">
+        <span class="path">~/project</span> <span class="cmd">$</span> <span class="arg">/plugin install odsp-microsoft/foundry</span>
+      </p>
+    </div>
+
+    <span class="version-badge">v1.6.2 · Copilot CLI Plugin</span>
+    <div class="scroll-hint">▼ scroll</div>
+  </section>
+
+  <!-- ══════════ SKILLS ══════════ -->
+  <section id="skills">
+    <div class="container">
+      <div class="section-header reveal">
+        <h2>// Skills</h2>
+        <p class="divider">═══════════════════════════════════════</p>
+      </div>
+
+      <div class="skills-grid">
+        <div class="skill-card reveal">
+          <h3>🔥 Crucible</h3>
+          <div class="subtitle">Multi-Model Planning</div>
+          <p>Three AI models plan independently, then cross-review until convergence. No single model's blind spots survive.</p>
+          <div class="phases">
+            Phases: <span>Intake → Assess → Config → Fleet Draft → Converge → Output → Handoff</span>
+          </div>
+        </div>
+
+        <div class="skill-card reveal">
+          <h3>⚒️ Forge</h3>
+          <div class="subtitle">Autonomous Execution</div>
+          <p>Reads the plan, writes code file-by-file, verifies every iteration, passes the build gate, commits and pushes.</p>
+          <div class="phases">
+            Phases: <span>Intake → Prepare → Branch → Execute → Ready → Deep Review → Ship</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Horizontal flow -->
+      <div class="how-flow reveal" id="flow-anim">
+        <div class="flow-node highlight">📋 Task<div class="node-sub">You describe the work</div></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">🔥 Crucible<div class="node-sub">3 models plan</div></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">📄 plan.md<div class="node-sub">Converged output</div></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">⚒️ Forge<div class="node-sub">Code + verify</div></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node highlight">🚀 Shipped<div class="node-sub">Committed & pushed</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ AGENTS ══════════ -->
+  <section id="agents">
+    <div class="container">
+      <div class="section-header reveal">
+        <h2>// Agents</h2>
+        <p class="divider">═══════════════════════════════════════</p>
+      </div>
+
+      <div class="agents-intro reveal">
+        Foundry coordinates 7 specialized agents, each with a single responsibility.
+        No agent does two things. They are dispatched by Crucible and Forge as needed —
+        drafters produce artifacts, verifiers validate them, and the scribe logs everything.
+      </div>
+
+      <div class="agents-grid">
+        <div class="agent-card reveal">
+          <div class="agent-name">plan-drafter</div>
+          <div class="agent-role">Crucible · Drafting</div>
+          <div class="agent-desc"><span class="why">Why:</span> Each model needs its own drafter to produce a plan independently — this is what makes multi-model convergence possible.</div>
+        </div>
+        <div class="agent-card reveal">
+          <div class="agent-name">design-drafter</div>
+          <div class="agent-role">Crucible · Drafting</div>
+          <div class="agent-desc"><span class="why">Why:</span> Large tasks need a design doc that specifies contracts and interfaces. This agent generates it during convergence so Forge can verify against it.</div>
+        </div>
+        <div class="agent-card reveal">
+          <div class="agent-name">plan-verifier</div>
+          <div class="agent-role">Forge · Verification</div>
+          <div class="agent-desc"><span class="why">Why:</span> After every code iteration, Forge needs a binary PASS/FAIL check that the implementation still matches the plan. No subjective judgment — just compliance.</div>
+        </div>
+        <div class="agent-card reveal">
+          <div class="agent-name">design-verifier</div>
+          <div class="agent-role">Forge · Verification</div>
+          <div class="agent-desc"><span class="why">Why:</span> Code can pass the plan check but violate design contracts. This agent catches interface mismatches and pattern violations.</div>
+        </div>
+        <div class="agent-card reveal">
+          <div class="agent-name">architecture-verifier</div>
+          <div class="agent-role">Forge · Verification</div>
+          <div class="agent-desc"><span class="why">Why:</span> Even correct code can break architecture rules. This agent verifies the implementation respects the existing architecture constraints and conventions.</div>
+        </div>
+        <div class="agent-card reveal">
+          <div class="agent-name">code-agent</div>
+          <div class="agent-role">Forge · Execution</div>
+          <div class="agent-desc"><span class="why">Why:</span> One agent per file, surgical changes only. Isolation prevents one file's changes from corrupting another. Each gets the plan + just its target file.</div>
+        </div>
+        <div class="agent-card reveal">
+          <div class="agent-name">scribe</div>
+          <div class="agent-role">Forge · Logging</div>
+          <div class="agent-desc"><span class="why">Why:</span> Forge runs autonomously and can span many iterations. The scribe records what happened each iteration so you (and Forge on resume) have full history.</div>
+        </div>
+      </div>
+
+      <div class="agents-wiki reveal">
+        Want to understand the internals?
+        <a href="https://github.com/odsp-microsoft/foundry/wiki">Read the wiki →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ HOW THEY WORK ══════════ -->
+  <section id="coordination">
+    <div class="container">
+      <div class="section-header reveal">
+        <h2>// How They Work</h2>
+        <p class="divider">═══════════════════════════════════════</p>
+      </div>
+
+      <div class="deep-grid">
+        <!-- Crucible Deep Dive -->
+        <div class="deep-box crucible-box reveal">
+          <div class="deep-box-header">🔥 Crucible</div>
+          <div class="deep-box-sub crucible-sub">The Planning Engine</div>
+
+          <div class="deep-agents-label">Agents it dispatches</div>
+          <div class="deep-agent-item">
+            <span class="da-name">plan-drafter</span>
+            <span class="da-role">×3 — one per model, produces plan.md</span>
+          </div>
+          <div class="deep-agent-item">
+            <span class="da-name">design-drafter</span>
+            <span class="da-role">×3 — large tasks only, produces design-doc.md</span>
+          </div>
+
+          <div class="deep-section-label">How it orchestrates</div>
+          <div class="deep-step">
+            <span class="ds-num crucible-num">1</span>
+            <span class="ds-text"><em>Intake</em> — collects task description, architecture doc, and execution config from you</span>
+          </div>
+          <div class="deep-step">
+            <span class="ds-num crucible-num">2</span>
+            <span class="ds-text"><em>Context Gathering</em> — Crucible itself scans the codebase (git ls-files, key files, project structure) and assembles a context packet</span>
+          </div>
+          <div class="deep-step">
+            <span class="ds-num crucible-num">3</span>
+            <span class="ds-text"><em>Fleet Dispatch</em> — sends context packet to 3 plan-drafters in parallel (Opus, Codex, Gemini). Each plans independently — no model sees the others</span>
+          </div>
+          <div class="deep-step">
+            <span class="ds-num crucible-num">4</span>
+            <span class="ds-text"><em>Cross-Review Loop</em> — all 3 plans are shared. Each model revises its plan after seeing the others. Repeats until ≥2/3 models converge structurally</span>
+          </div>
+          <div class="deep-step">
+            <span class="ds-num crucible-num">5</span>
+            <span class="ds-text"><em>Output</em> — writes converged plan.md (+ design-doc.md for large tasks) to the Foundry working directory</span>
+          </div>
+
+          <div class="deep-section-label">Key insight</div>
+          <div style="font-size:11px; color:var(--text); line-height:1.7;">
+            The plan-drafter never touches the codebase. <em style="color:var(--cyan);">Crucible</em> does all the exploration and feeds the drafter a pre-assembled context packet. The drafter's only job is: given this context, produce the best possible plan.
+          </div>
+        </div>
+
+        <!-- Forge Deep Dive -->
+        <div class="deep-box forge-box reveal">
+          <div class="deep-box-header">⚒️ Forge</div>
+          <div class="deep-box-sub forge-sub">The Execution Engine</div>
+
+          <div class="deep-agents-label">Agents it dispatches</div>
+          <div class="deep-agent-item">
+            <span class="da-name">code-agent</span>
+            <span class="da-role">×N — one per file, surgical changes only</span>
+          </div>
+          <div class="deep-agent-item">
+            <span class="da-name">plan-verifier</span>
+            <span class="da-role">×1 per iteration — PASS/FAIL compliance</span>
+          </div>
+          <div class="deep-agent-item">
+            <span class="da-name">design-verifier</span>
+            <span class="da-role">×1 per iteration — contract checks (large only)</span>
+          </div>
+          <div class="deep-agent-item">
+            <span class="da-name">arch-verifier</span>
+            <span class="da-role">×1 per iteration — architecture compliance</span>
+          </div>
+          <div class="deep-agent-item">
+            <span class="da-name">scribe</span>
+            <span class="da-role">×1 per iteration — logs history for resume</span>
+          </div>
+
+          <div class="deep-section-label">How it orchestrates</div>
+          <div class="deep-step">
+            <span class="ds-num forge-num">1</span>
+            <span class="ds-text"><em>Intake</em> — reads plan.md from Crucible's output. Runs headless using the execution config</span>
+          </div>
+          <div class="deep-step">
+            <span class="ds-num forge-num">2</span>
+            <span class="ds-text"><em>Branch</em> — creates task branch from base. For multi-split: creates split branches off the task branch</span>
+          </div>
+          <div class="deep-step">
+            <span class="ds-num forge-num">3</span>
+            <span class="ds-text"><em>Execute</em> — for each file in the plan, dispatches a dedicated code-agent. One agent = one file = isolation</span>
+          </div>
+          <div class="deep-step">
+            <span class="ds-num forge-num">4</span>
+            <span class="ds-text"><em>Verify</em> — after each iteration, runs plan-verifier + design-verifier + architecture-verifier in parallel. All must PASS</span>
+          </div>
+          <div class="deep-step">
+            <span class="ds-num forge-num">5</span>
+            <span class="ds-text"><em>Deep Review</em> — 3-model adversarial review. Scribe logs everything. On PASS → commit, push, done</span>
+          </div>
+
+          <div class="deep-section-label">Key insight</div>
+          <div style="font-size:11px; color:var(--text); line-height:1.7;">
+            Forge is designed to be <em style="color:var(--cyan);">headless</em> — after you say "go", it runs to completion without interruption. If interrupted, the scribe's logs enable full resume from the last iteration.
+          </div>
+        </div>
+      </div>
+
+      <div class="deep-wiki reveal">
+        Full internal documentation →
+        <a href="https://github.com/odsp-microsoft/foundry/wiki">Foundry Wiki</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ FLEET REVIEW ══════════ -->
+  <section id="fleet">
+    <div class="container">
+      <div class="section-header reveal">
+        <h2>// Fleet Review</h2>
+        <p class="divider">═══════════════════════════════════════</p>
+      </div>
+
+      <div class="fleet-demo reveal" id="fleet-anim">
+        <div class="fleet-header">Three Models. One Verdict.</div>
+        <div class="fleet-models">
+          <div class="fleet-model" id="fm-opus">
+            <div class="model-name opus">Claude Opus</div>
+            <div class="model-score" style="color:var(--purple)">9.1</div>
+            <div class="model-issues">Deep architectural analysis</div>
+          </div>
+          <div class="fleet-model" id="fm-codex">
+            <div class="model-name codex">GPT Codex</div>
+            <div class="model-score" style="color:var(--green)">9.0</div>
+            <div class="model-issues">Logic & correctness focus</div>
+          </div>
+          <div class="fleet-model" id="fm-gemini">
+            <div class="model-name gemini">Gemini Pro</div>
+            <div class="model-score" style="color:var(--cyan)">8.0</div>
+            <div class="model-issues">Edge case detection</div>
+          </div>
+        </div>
+        <div class="fleet-converge">
+          <span class="arrow">▼</span> Cross-reference → Deduplicate → Apply fixes → Commit <span class="arrow">▼</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ INSTALL ══════════ -->
+  <section id="install">
+    <div class="container">
+      <div class="section-header reveal">
+        <h2>// Install</h2>
+        <p class="divider">═══════════════════════════════════════</p>
+      </div>
+
+      <div class="install reveal">
+        <p style="color:var(--text-dim); font-size:13px; margin-bottom:8px;">
+          Requires <a href="https://docs.github.com/copilot/concepts/agents/about-copilot-cli">GitHub Copilot CLI</a>
+        </p>
+        <div class="install-box">
+          <code>/plugin install odsp-microsoft/foundry</code>
+          <span class="copy-hint">Copilot CLI only — multi-model orchestration required</span>
+        </div>
+
+        <p style="color:var(--text-dim); font-size:12px; margin-top:32px; margin-bottom:8px;">
+          Foundry's deep review phase uses <strong style="color:var(--text-bright)">deep-review</strong> for adversarial code review
+        </p>
+        <div class="install-box" style="border-color: rgba(0,204,255,0.5);">
+          <code style="color: var(--cyan);">/plugin install agency-microsoft/deep-review</code>
+          <span class="copy-hint">Recommended — Forge falls back gracefully if not installed</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ NOTES ══════════ -->
+  <section id="notes">
+    <div class="container">
+      <div class="section-header reveal">
+        <h2>// Important Notes</h2>
+        <p class="divider">═══════════════════════════════════════</p>
+      </div>
+
+      <div class="reveal">
+        <div class="caution-banner">
+          <div class="caution-title">⚠ Caution</div>
+          <p>
+            <strong>AI can make mistakes.</strong> Foundry is a powerful tool, but it is still just a tool.
+            It is your responsibility to cross-check all outputs — code, plans, and design docs.
+            No matter how smart the orchestration gets, it still needs human oversight.
+            <strong>Always verify your work before merging.</strong>
+          </p>
+        </div>
+      </div>
+
+      <div class="reveal" style="margin-top: 16px;">
+        <div class="info-banner">
+          <div class="info-title">💡 Recommendation</div>
+          <p>
+            Foundry dispatches multiple AI models in parallel — planning with 3 models,
+            executing with dedicated code agents, and running adversarial reviews.
+            This can consume significant resources depending on task complexity.
+            <strong>We recommend using Foundry in a separate dev box or dedicated environment</strong>
+            to avoid impacting your primary workflow.
+          </p>
+        </div>
+      </div>
+
+      <div class="reveal" style="margin-top: 16px;">
+        <div class="info-banner" style="border-left-color: var(--amber);">
+          <div class="info-title" style="color: var(--amber);">🔑 Permissions</div>
+          <p>
+            Foundry creates branches, writes files, runs builds, commits, and pushes — all autonomously.
+            For it to work without constant permission prompts interrupting the flow,
+            <strong>enable full permissions with <code style="color:var(--amber); background:rgba(255,170,0,0.1); padding:2px 6px;">/yolo</code> in Copilot CLI</strong>
+            before invoking Crucible or Forge. Without it, Foundry will pause at every file write and git operation, breaking the autonomous execution loop.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ FOOTER ══════════ -->
+  <footer>
+    <div class="container">
+      <p class="built-with">
+        Made with <span class="heart">❤</span> by
+        <a href="https://github.com/shreyasssk">Shreyas</a>
+      </p>
+      <p class="foundry-badge">
+        <span>⚒️</span> This website was built with Foundry
+      </p>
+      <p style="margin-top:12px; font-size:11px;">
+        <a href="https://github.com/odsp-microsoft/foundry">GitHub</a>
+        &nbsp;·&nbsp;
+        <a href="https://github.com/odsp-microsoft/foundry/wiki">Wiki</a>
+        &nbsp;·&nbsp;
+        <a href="https://github.com/odsp-microsoft/foundry/releases">Releases</a>
+      </p>
+    </div>
+  </footer>
+
+  <!-- ══════════ SCRIPTS ══════════ -->
+  <script>
+    // ── Typed text ──
+    const phrases = [
+      'Plan with 3 AI models. Execute with coordinated agents. Ship with confidence.',
+      'No single model\'s blind spots survive the fleet.',
+      'From task description to committed code — autonomously.',
+    ];
+    let phraseIndex = 0, charIndex = 0, isDeleting = false;
+    const typedEl = document.getElementById('typed-text');
+
+    function typeEffect() {
+      const current = phrases[phraseIndex];
+      if (isDeleting) {
+        typedEl.textContent = current.substring(0, charIndex--);
+        if (charIndex < 0) {
+          isDeleting = false;
+          phraseIndex = (phraseIndex + 1) % phrases.length;
+          setTimeout(typeEffect, 400);
+          return;
+        }
+        setTimeout(typeEffect, 30);
+      } else {
+        typedEl.textContent = current.substring(0, charIndex++);
+        if (charIndex > current.length) {
+          setTimeout(() => { isDeleting = true; typeEffect(); }, 2500);
+          return;
+        }
+        setTimeout(typeEffect, 50);
+      }
+    }
+    setTimeout(typeEffect, 1500);
+
+    // ── Scroll reveal ──
+    const reveals = document.querySelectorAll('.reveal');
+    const revealObs = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+    }, { threshold: 0.15 });
+    reveals.forEach(el => revealObs.observe(el));
+
+    // ── Flow animation ──
+    const flowAnim = document.getElementById('flow-anim');
+    const flowObs = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const nodes = entry.target.querySelectorAll('.flow-node');
+          const arrows = entry.target.querySelectorAll('.flow-arrow');
+          let delay = 0;
+          nodes.forEach((node, i) => {
+            setTimeout(() => node.classList.add('visible'), delay);
+            delay += 200;
+            if (arrows[i]) {
+              setTimeout(() => arrows[i].classList.add('visible'), delay);
+              delay += 150;
+            }
+          });
+        }
+      });
+    }, { threshold: 0.3 });
+    flowObs.observe(flowAnim);
+
+    // ── Fleet model animation ──
+    const fleetDemo = document.getElementById('fleet-anim');
+    const fleetObs = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const models = entry.target.querySelectorAll('.fleet-model');
+          models.forEach((m, i) => {
+            setTimeout(() => m.classList.add('animate'), i * 300);
+          });
+        }
+      });
+    }, { threshold: 0.3 });
+    fleetObs.observe(fleetDemo);
+  </script>
+</body>
+</html>
