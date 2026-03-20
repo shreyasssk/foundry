@@ -266,4 +266,6 @@ Thanks to the [**deep-review**](https://github.com/agency-microsoft/.github-priv
 
 ---
 
+Made with ❤️ by Shreyas ([@shshivakumar](https://github.com/shshivakumar_microsoft))
+
 **v1.6.2** - [Version History](ARCHITECTURE.md#version-history)
