@@ -258,7 +258,7 @@ Want to go deeper? The [Foundry Wiki](https://github.com/odsp-microsoft/foundry/
 
 ## Acknowledgments
 
-Made with <3 by **Shreyas Shivakumar** ([@shshivakumar](https://github.com/shshivakumar)).
+Made with <3 by **Shreyas Shivakumar** ([@shshivakumar](https://github.com/shshivakumar_microsoft)).
 
 Shoutout to **Ian De La Garza** ([@iandelagarza](https://github.com/iandelagarza)) and **Touseef Liaqat** ([@tliaqat](https://github.com/tliaqat)) — everything I've learnt about GitHub Copilot and Claude, and how to efficiently use these tools, I owe to them.
 
