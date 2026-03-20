@@ -258,6 +258,8 @@ Want to go deeper? The [Foundry Wiki](https://github.com/odsp-microsoft/foundry/
 
 ## Acknowledgments
 
+Built by **Shreyas Shivakumar** ([@shreyasssk](https://github.com/shreyasssk)).
+
 Shoutout to **Ian De La Garza** ([@iandelagarza](https://github.com/iandelagarza)) and **Touseef Liaqat** ([@tliaqat](https://github.com/tliaqat)) — everything I've learnt about GitHub Copilot and Claude, and how to efficiently use these tools, I owe to them.
 
 Thanks to the [**deep-review**](https://github.com/agency-microsoft/.github-private/tree/main/plugins/deep-review) team for creating a splendid adversarial review skill — it powers Foundry's fleet review process and has been instrumental in catching subtle bugs across every version.
